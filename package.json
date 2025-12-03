@@ -4,8 +4,8 @@
   "description": "Quiz Application using MERN stack",
   "main": "index.js",
   "engines": {
-    "node": ">=20.19.0",
-    "npm": ">=10.8.2"
+    "node": "20.x",
+    "npm": ">=10.0.0"
   },
   "scripts": {
     "start": "node server/server.js",
