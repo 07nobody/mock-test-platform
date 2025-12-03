@@ -1,11 +1,11 @@
 const path = require("path");
 const mongoose = require("mongoose");
-const { MongoMemoryServer } = require("mongodb-memory-server");
 
 require('dotenv').config({ path: path.join(__dirname, "../.env") });
 
-const useInMemoryDb = String(process.env.USE_IN_MEMORY_DB || "").toLowerCase() === "true";
-let mongoUrl = useInMemoryDb ? "" : (process.env.MONGO_URL || process.env.MONGO_LOCAL_URL || "").trim();
+const isProduction = process.env.NODE_ENV === "production";
+const useInMemoryDb = !isProduction && String(process.env.USE_IN_MEMORY_DB || "").toLowerCase() === "true";
+let mongoUrl = (process.env.MONGO_URL || process.env.MONGO_LOCAL_URL || "").trim();
 let memoryServer;
 
 const connectionOptions = {
@@ -15,21 +15,25 @@ const connectionOptions = {
 
 async function initializeDatabase() {
   try {
+    // Only use in-memory DB in development when explicitly enabled
     if (!mongoUrl && useInMemoryDb) {
+      // Dynamically import mongodb-memory-server only when needed (dev only)
+      const { MongoMemoryServer } = require("mongodb-memory-server");
       memoryServer = await MongoMemoryServer.create();
       mongoUrl = memoryServer.getUri();
       console.log(`Using in-memory MongoDB instance at ${mongoUrl}`);
     }
 
     if (!mongoUrl) {
-      console.error('MongoDB connection string is not defined. Please set MONGO_URL (or MONGO_LOCAL_URL) in server/.env');
+      console.error('MongoDB connection string is not defined. Please set MONGO_URL in environment variables.');
       process.exit(1);
     }
 
+    console.log('Connecting to MongoDB...');
     await mongoose.connect(mongoUrl, connectionOptions);
   } catch (err) {
     if (err.code === 'ENOTFOUND') {
-      console.error('Unable to resolve the MongoDB host. Double-check the cluster hostname or ensure your network allows DNS lookups for mongodb.net domains.');
+      console.error('Unable to resolve the MongoDB host. Double-check the cluster hostname.');
     }
 
     console.error('MongoDB connection error:', err);
