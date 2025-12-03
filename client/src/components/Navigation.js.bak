@@ -1,0 +1,370 @@
+import React, { useState, useEffect } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
+import { useNavigate, Link } from 'react-router-dom';
+import { Layout, Menu, Button, Avatar, Dropdown, message, Drawer, Badge, Tooltip } from 'antd';
+import { 
+  UserOutlined, 
+  LogoutOutlined, 
+  FileTextOutlined, 
+  HomeOutlined, 
+  FormOutlined,
+  MenuUnfoldOutlined,
+  MenuFoldOutlined,
+  BarsOutlined,
+  EyeOutlined,
+  MoonOutlined,
+  SunOutlined,
+  TrophyOutlined,
+  DollarOutlined
+} from '@ant-design/icons';
+import { SetUser } from '../redux/usersSlice';
+import { useTheme } from '../contexts/ThemeContext';
+import AccessibilitySettings from './AccessibilitySettings';
+
+const { Header, Sider, Content } = Layout;
+
+function Navigation({ children }) {
+  const { user } = useSelector(state => state.users);
+  const [collapsed, setCollapsed] = useState(false);
+  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+  const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
+  const [accessibilityModalVisible, setAccessibilityModalVisible] = useState(false);
+  const { currentTheme, toggleTheme } = useTheme();
+  const dispatch = useDispatch();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const handleResize = () => {
+      const mobile = window.innerWidth <= 768;
+      setIsMobile(mobile);
+      if (!mobile && mobileDrawerOpen) {
+        setMobileDrawerOpen(false);
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, [mobileDrawerOpen]);
+
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    dispatch(SetUser(null));
+    message.success('Logged out successfully');
+    navigate('/login');
+  };
+
+  // Create menu items for user dropdown
+  const userMenuItems = [
+    {
+      key: 'profile',
+      icon: <UserOutlined />,
+      label: 'Profile',
+      onClick: () => navigate('/profile')
+    },
+    {
+      type: 'divider'
+    },
+    {
+      key: 'logout',
+      icon: <LogoutOutlined />,
+      label: 'Logout',
+      onClick: handleLogout
+    }
+  ];
+
+  const menuItems = [
+    {
+      key: '/',
+      icon: <HomeOutlined />,
+      label: 'Home',
+    },
+    {
+      key: '/available-exams',
+      icon: <FormOutlined />,
+      label: 'Mock Exams',
+    },
+    {
+      key: '/user/reports',
+      icon: <FileTextOutlined />,
+      label: 'Reports',
+    },
+    {
+      key: '/user/payment-history',
+      icon: <DollarOutlined />,
+      label: 'Payment History',
+    },
+    {
+      key: '/leaderboard',
+      icon: <TrophyOutlined />,
+      label: 'Leaderboard',
+    },
+  ];
+
+  // Add admin menu items if user is admin
+  if (user?.isAdmin) {
+    menuItems.push(
+      {
+        key: '/admin/exams',
+        icon: <FormOutlined />,
+        label: 'Create Exams',
+      },
+      {
+        key: '/admin/reports',
+        icon: <FileTextOutlined />,
+        label: 'All Reports',
+      },
+      {
+        key: '/admin/payments',
+        icon: <DollarOutlined />,
+        label: 'Payments',
+      },
+    );
+  }
+  // Removed the duplicate payment history item for non-admin users
+
+  const handleMenuClick = ({ key }) => {
+    console.log(`Navigating to: ${key}`);
+    navigate(key);
+    if (isMobile) {
+      setMobileDrawerOpen(false);
+    }
+  };
+
+  const renderSidebar = () => (
+    <div className="sidebar-container">
+      <div className="logo" style={{ 
+        height: '64px', 
+        margin: '16px', 
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        fontWeight: 'bold',
+        fontSize: collapsed && !isMobile ? '14px' : '18px',
+        color: 'var(--primary)'
+      }}>
+        {collapsed && !isMobile ? 'MTP' : 'Mock Test Platform'}
+      </div>
+      <Menu 
+        theme="light" 
+        mode="inline" 
+        selectedKeys={[window.location.pathname]} 
+        items={menuItems}
+        onClick={handleMenuClick}
+        style={{ borderRight: 0 }}
+      />
+    </div>
+  );
+
+  return (
+    <Layout className="app-layout">
+      {!isMobile && (
+        <Sider 
+          trigger={null} 
+          collapsible 
+          collapsed={collapsed} 
+          theme="light"
+          className="app-sider"
+        >
+          {renderSidebar()}
+        </Sider>
+      )}
+      <Layout>
+        <Header className="app-header">
+          <div className="header-left">
+            {isMobile ? (
+              <Button
+                type="text"
+                icon={<BarsOutlined />}
+                onClick={() => setMobileDrawerOpen(true)}
+                className="mobile-menu-button"
+              />
+            ) : (
+              <Button
+                type="text"
+                icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
+                onClick={() => setCollapsed(!collapsed)}
+                className="desktop-menu-button"
+              />
+            )}
+            <span className="header-title">
+              {isMobile && 'MTP'}
+            </span>
+          </div>
+          
+          <div className="header-right">
+            {/* Theme toggle button */}
+            <Tooltip title={currentTheme === 'dark' ? 'Switch to Light Mode' : 'Switch to Dark Mode'}>
+              <Button 
+                type="text" 
+                icon={currentTheme === 'dark' ? <SunOutlined /> : <MoonOutlined />}
+                onClick={toggleTheme}
+                className="theme-toggle-btn"
+              />
+            </Tooltip>
+            
+            {/* Accessibility settings button */}
+            <Tooltip title="Accessibility Settings">
+              <Badge dot={false}>
+                <Button 
+                  type="text" 
+                  icon={<EyeOutlined />} 
+                  onClick={() => setAccessibilityModalVisible(true)}
+                  className="accessibility-btn"
+                />
+              </Badge>
+            </Tooltip>
+            
+            <Dropdown menu={{ items: userMenuItems }} placement="bottomRight" arrow>
+              <div className="user-profile-dropdown">
+                <Avatar style={{ backgroundColor: 'var(--primary)' }} icon={<UserOutlined />} />
+                {!isMobile && (
+                  <span className="user-name">
+                    {user?.name || 'User'}
+                  </span>
+                )}
+              </div>
+            </Dropdown>
+          </div>
+        </Header>
+        <Content className="app-content">
+          {children}
+        </Content>
+      </Layout>
+
+      {isMobile && (
+        <Drawer
+          title="Mock Test Platform"
+          placement="left"
+          onClose={() => setMobileDrawerOpen(false)}
+          open={mobileDrawerOpen}
+          styles={{
+          header: {
+            background: 'var(--primary)',
+            color: 'white',
+            fontWeight: 'bold',
+          },
+          body: {
+            padding: 0,
+          },
+        }}
+        >
+          {renderSidebar()}
+        </Drawer>
+      )}
+      
+      {/* Accessibility Settings Modal */}
+      <AccessibilitySettings 
+        visible={accessibilityModalVisible}
+        onClose={() => setAccessibilityModalVisible(false)}
+      />
+
+      <style jsx="true">{`
+        .app-layout {
+          min-height: 100vh;
+        }
+
+        .app-sider {
+          box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+          overflow: auto;
+          height: 100vh;
+          position: sticky;
+          top: 0;
+          left: 0;
+          z-index: 1000;
+          background-color: var(--background-secondary);
+          border-right: 1px solid var(--border-color);
+        }
+
+        .app-header {
+          padding: 0 16px;
+          background-color: var(--background-secondary);
+          color: var(--text-primary);
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          box-shadow: 0 1px 4px rgba(0,0,0,0.05);
+          position: sticky;
+          top: 0;
+          z-index: 999;
+          height: 64px;
+          border-bottom: 1px solid var(--border-color);
+        }
+
+        .app-content {
+          margin: 16px;
+          padding: 16px;
+          background-color: var(--background-primary);
+          color: var(--text-primary);
+          border-radius: 8px;
+          overflow: auto;
+        }
+
+        .header-left {
+          display: flex;
+          align-items: center;
+        }
+
+        .header-title {
+          font-weight: bold;
+          font-size: 18px;
+          color: var(--primary);
+          margin-left: 12px;
+        }
+
+        .header-right {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+
+        .user-profile-dropdown {
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          margin-left: 12px;
+        }
+
+        .user-name {
+          margin-left: 10px;
+          font-weight: 500;
+          color: var(--text-primary);
+        }
+
+        .theme-toggle-btn {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: var(--text-primary);
+          transition: transform 0.3s ease;
+        }
+        
+        .theme-toggle-btn:hover {
+          transform: rotate(30deg);
+        }
+
+        .accessibility-btn {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          color: var(--text-primary);
+        }
+
+        @media (max-width: 768px) {
+          .app-content {
+            margin: 8px;
+            padding: 12px;
+          }
+        }
+
+        @media (max-width: 480px) {
+          .app-content {
+            margin: 4px;
+            padding: 8px;
+          }
+        }
+      `}</style>
+    </Layout>
+  );
+}
+
+export default Navigation;

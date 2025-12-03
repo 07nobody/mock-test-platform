@@ -1,18 +1,17 @@
 import React, { useEffect, useState, useCallback, useRef } from "react";
 import { useDispatch, useSelector } from "react-redux";
-import { useMessage } from "./MessageProvider";
 import { useNavigate } from "react-router-dom";
 import { getUserInfo } from "../apicalls/users";
 import { SetUser } from "../redux/usersSlice";
 import { HideLoading, ShowLoading } from "../redux/loaderSlice";
-import Navigation from "./Navigation";
+import Navigation from "./NavigationMantine";
+import { message } from "../utils/notifications";
 
 function ProtectedRoute({ children }) {
   const [isUserLoggedIn, setIsUserLoggedIn] = useState(false);
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const { user } = useSelector((state) => state.users);
-  const message = useMessage();
   
   // Use a ref to track if the component is mounted
   const isMountedRef = useRef(true);

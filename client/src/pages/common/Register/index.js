@@ -1,16 +1,44 @@
-import { Form, message } from "antd";
-import React, { useState } from "react";
-import { Link } from "react-router-dom";
-import { useDispatch } from "react-redux";
-import { registerUser } from "../../../apicalls/users";
-import { HideLoading, ShowLoading } from "../../../redux/loaderSlice";
+/**
+ * Register Page - Clean shadcn-inspired design
+ */
+
+import React, { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { useDispatch } from 'react-redux';
+import {
+  Paper,
+  TextInput,
+  PasswordInput,
+  Button,
+  Title,
+  Text,
+  Container,
+  Stack,
+  Box,
+  Divider,
+  ThemeIcon,
+} from '@mantine/core';
+import { useForm } from '@mantine/form';
+import { IconUser, IconAt, IconLock, IconClipboardList } from '@tabler/icons-react';
+import { registerUser } from '../../../apicalls/users';
+import { HideLoading, ShowLoading } from '../../../redux/loaderSlice';
+import { message } from '../../../utils/notifications';
 
 function Register() {
   const dispatch = useDispatch();
-  const [form] = Form.useForm();
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
 
-  const onFinish = async (values) => {
+  const form = useForm({
+    initialValues: { name: '', email: '', password: '' },
+    validate: {
+      name: (value) => (value.length > 0 ? null : 'Name is required'),
+      email: (value) => (/^\S+@\S+$/.test(value) ? null : 'Invalid email'),
+      password: (value) => (value.length >= 6 ? null : 'Password must be at least 6 characters'),
+    },
+  });
+
+  const onSubmit = async (values) => {
     try {
       setLoading(true);
       dispatch(ShowLoading());
@@ -20,95 +48,64 @@ function Register() {
 
       if (response.success) {
         message.success(response.message);
-        window.location.href = "/login";
+        navigate('/login');
       } else {
         message.error(response.message);
       }
     } catch (error) {
       setLoading(false);
       dispatch(HideLoading());
-      message.error(error.response?.data?.message || "Something went wrong");
+      message.error(error.response?.data?.message || 'Something went wrong');
     }
   };
 
   return (
-    <div className="flex justify-center items-center h-screen w-screen bg-primary">
-      <div className="card w-400 p-3 bg-white">
-        <div className="flex flex-col">
-          <div className="flex justify-center">
-            <h1 className="text-2xl font-bold text-center">
-              Create Your Account
-            </h1>
-          </div>
-          <div className="divider"></div>
-          <Form
-            form={form}
-            layout="vertical"
-            className="mt-2"
-            onFinish={onFinish}
-            initialValues={{ name: "", email: "", password: "" }}
-          >
-            <Form.Item
-              name="name"
-              label="Name"
-              rules={[{ required: true, message: "Please input your name!" }]}
-            >
-              <input
-                type="text"
-                placeholder="Name"
-                autoComplete="name"
-                disabled={loading}
-                className="input"
-              />
-            </Form.Item>
+    <Box className="min-h-screen flex items-center justify-center p-4 page-muted-bg">
+      <Container size={420} w="100%">
+        <Paper radius="lg" p="xl" withBorder>
+          <Stack gap="sm" mb="lg" align="center">
+            <ThemeIcon size={48} radius="md" color="violet">
+              <IconClipboardList size={26} />
+            </ThemeIcon>
+            <Box ta="center">
+              <Title order={2}>Create account</Title>
+              <Text size="sm" c="dimmed">Join us today</Text>
+            </Box>
+          </Stack>
 
-            <Form.Item
-              name="email"
-              label="Email"
-              rules={[
-                { required: true, message: "Please input your email!" },
-                { type: "email", message: "Please enter a valid email!" },
-              ]}
-            >
-              <input
-                type="email"
-                placeholder="Email address"
-                autoComplete="email"
-                disabled={loading}
-                className="input"
+          <form onSubmit={form.onSubmit(onSubmit)}>
+            <Stack gap="md">
+              <TextInput
+                label="Full Name"
+                placeholder="John Doe"
+                leftSection={<IconUser size={16} />}
+                {...form.getInputProps('name')}
               />
-            </Form.Item>
-
-            <Form.Item
-              name="password"
-              label="Password"
-              rules={[{ required: true, message: "Please input your password!" }]}
-            >
-              <input
-                type="password"
-                placeholder="Password"
-                autoComplete="new-password"
-                disabled={loading}
-                className="input"
+              <TextInput
+                label="Email"
+                placeholder="your@email.com"
+                leftSection={<IconAt size={16} />}
+                {...form.getInputProps('email')}
               />
-            </Form.Item>
-
-            <div className="flex flex-col gap-2">
-              <button
-                type="submit"
-                className="button button-primary mt-2 w-100"
-                disabled={loading}
-              >
-                {loading ? "Registering..." : "Register"}
-              </button>
-              <Link to="/login" className="text-center underline">
-                Already a member? Login
-              </Link>
-            </div>
-          </Form>
-        </div>
-      </div>
-    </div>
+              <PasswordInput
+                label="Password"
+                placeholder="Create a password"
+                leftSection={<IconLock size={16} />}
+                {...form.getInputProps('password')}
+              />
+              <Text size="xs" c="dimmed">Password must be at least 6 characters</Text>
+              <Button type="submit" fullWidth loading={loading}>
+                Create Account
+              </Button>
+              <Divider label="Already have an account?" labelPosition="center" />
+              <Button component={Link} to="/login" variant="outline" fullWidth>
+                Sign in
+              </Button>
+            </Stack>
+          </form>
+        </Paper>
+      </Container>
+    </Box>
   );
 }
 

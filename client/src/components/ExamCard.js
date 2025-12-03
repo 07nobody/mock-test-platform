@@ -1,239 +1,137 @@
 import React, { useMemo, useCallback } from 'react';
-import { Button, Tag, Dropdown } from 'antd';
 import { 
-  EditOutlined, 
-  DeleteOutlined, 
-  MoreOutlined,
-  BookOutlined,
-  FileTextOutlined,
-  FieldTimeOutlined, 
-  CheckCircleOutlined
-} from '@ant-design/icons';
-import ResponsiveCard from './ResponsiveCard';
-import InfoItem from './InfoItem';
+  Card, 
+  Button, 
+  Badge, 
+  Menu, 
+  Switch, 
+  Tooltip, 
+  Group, 
+  Text,
+  Stack,
+  Box,
+  Divider
+} from '@mantine/core';
+import { 
+  IconEdit, 
+  IconTrash, 
+  IconDots,
+  IconFileText,
+  IconClock, 
+  IconCircleCheck,
+  IconRefresh,
+  IconUsers
+} from '@tabler/icons-react';
 
 /**
  * Card component for displaying an exam in the admin section
- * 
- * @param {Object} props
- * @param {Object} props.exam - The exam data to display
- * @param {Function} props.onDelete - Function to call when delete button is clicked
- * @param {Function} props.onEdit - Function to call when edit button is clicked
- * @param {Function} props.onQuestions - Function to call when add/edit questions button is clicked
  */
-function ExamCard({ exam, onDelete, onEdit, onQuestions }) {
-  // Memoize the status tag to prevent unnecessary re-renders
-  const statusTag = useMemo(() => {
-    if (!exam.isActive) {
-      return <Tag color="error">Inactive</Tag>;
-    }
-    
-    const hasQuestions = exam.questions?.length > 0;
-    if (!hasQuestions) {
-      return <Tag color="warning">No Questions</Tag>;
-    }
-    
-    return <Tag color="success">Active</Tag>;
-  }, [exam.isActive, exam.questions?.length]);
-  
-  // Use callbacks for event handlers to prevent recreating functions on each render
+function ExamCard({ exam, onDelete, onEdit, onQuestions, onRegenerateToken, onToggleStatus }) {
   const handleEdit = useCallback(() => onEdit(exam), [exam, onEdit]);
   const handleQuestions = useCallback(() => onQuestions(exam), [exam, onQuestions]);
-  const handleDelete = useCallback(() => onDelete(exam), [exam, onDelete]);
+  const handleDelete = useCallback(() => onDelete(exam._id), [exam._id, onDelete]);
+  const handleRegenerateToken = useCallback(() => onRegenerateToken(exam), [exam, onRegenerateToken]);
+  const handleToggleStatus = useCallback(() => onToggleStatus(exam), [exam, onToggleStatus]);
   
-  // Memoize menu items to prevent recreating the array on each render
-  const menuItems = useMemo(() => [
-    {
-      key: "edit",
-      icon: <EditOutlined />,
-      label: "Edit Exam",
-      onClick: handleEdit
-    },
-    {
-      key: "questions",
-      icon: <FileTextOutlined />,
-      label: "Manage Questions",
-      onClick: handleQuestions
-    },
-    {
-      key: "delete",
-      icon: <DeleteOutlined />,
-      label: "Delete Exam",
-      danger: true,
-      onClick: handleDelete
-    }
-  ], [handleEdit, handleQuestions, handleDelete]);
-  
-  // Memoize the card title to prevent unnecessary re-renders
-  const cardTitle = useMemo(() => (
-    <div className="exam-card-header">
-      <div className="exam-name">{exam.name}</div>
-      {statusTag}
-    </div>
-  ), [exam.name, statusTag]);
-  
-  // Memoize the card extra content to prevent unnecessary re-renders
-  const cardExtra = useMemo(() => (
-    <div className="card-actions-desktop hidden-mobile">
-      <Button 
-        type="primary" 
-        icon={<EditOutlined />} 
-        onClick={handleEdit} 
-        className="edit-btn"
-      >
-        Edit
-      </Button>
-      <Button 
-        type="default" 
-        icon={<FileTextOutlined />} 
-        onClick={handleQuestions} 
-        className="questions-btn"
-      >
-        Questions
-      </Button>
-      <Button 
-        type="text"
-        icon={<DeleteOutlined />} 
-        onClick={handleDelete} 
-        danger
-        className="delete-btn"
-      >
-        Delete
-      </Button>
-    </div>
-  ), [handleEdit, handleQuestions, handleDelete]);
-  
-  // Memoize the card footer to prevent unnecessary re-renders
-  const cardFooter = useMemo(() => (
-    <div className="card-actions-mobile visible-mobile">
-      <Dropdown 
-        menu={{ items: menuItems }} 
-        trigger={['click']} 
-        placement="bottomRight"
-      >
-        <Button icon={<MoreOutlined />}>Actions</Button>
-      </Dropdown>
-    </div>
-  ), [menuItems]);
-  
-  // Memoize the duration string to prevent recalculating on each render
-  const durationString = useMemo(() => 
-    `${Math.floor(exam.duration / 60)} mins`, 
-    [exam.duration]
+  const isStatusToggleDisabled = useMemo(() => 
+    !exam.questions || exam.questions.length === 0 || exam.questions.length !== exam.totalMarks,
+    [exam.questions, exam.totalMarks]
   );
   
-  // Memoize the pass score string to prevent recalculating on each render
-  const passScoreString = useMemo(() => 
-    `${exam.passingMarks}/${exam.totalMarks}`, 
-    [exam.passingMarks, exam.totalMarks]
-  );
+  const durationString = useMemo(() => `${Math.floor(exam.duration / 60)} mins`, [exam.duration]);
   
   return (
-    <ResponsiveCard 
-      className="admin-exam-card"
-      title={cardTitle}
-      extra={cardExtra}
-      footer={cardFooter}
-    >
-      <div className="exam-card-content">
-        <div className="exam-info">
-          <InfoItem 
-            icon={<BookOutlined className="info-icon" />}
-            label="Category:" 
-            value={exam.category}
-          />
-          
-          <InfoItem 
-            icon={<FieldTimeOutlined className="info-icon" />}
-            label="Duration:" 
-            value={durationString}
-          />
-          
-          <div className="info-row">
-            <InfoItem 
-              label="Questions:" 
-              value={exam.questions?.length || 0}
+    <Card withBorder padding="lg" radius="md">
+      <Group justify="space-between" mb="md">
+        <Box>
+          <Text fw={600} size="lg" lineClamp={1}>{exam.name}</Text>
+          <Badge variant="outline" size="sm" mt={4}>{exam.category}</Badge>
+        </Box>
+        <Group gap="xs">
+          <Badge color={exam.status === "active" ? "green" : "red"} variant="light">
+            {exam.status === "active" ? "ACTIVE" : "INACTIVE"}
+          </Badge>
+          <Tooltip 
+            label={
+              isStatusToggleDisabled ? 
+              "Add required questions to enable activation" : 
+              exam.status === "active" ? "Deactivate exam" : "Activate exam"
+            }
+          >
+            <Switch
+              checked={exam.status === "active"}
+              onChange={handleToggleStatus}
+              disabled={isStatusToggleDisabled}
+              size="sm"
             />
-            
-            <InfoItem 
-              icon={<CheckCircleOutlined className="info-icon success-icon" />}
-              label="Pass Score:" 
-              value={passScoreString}
-            />
-          </div>
-        </div>
-      </div>
-      
-      <style jsx="true">{`
-        .admin-exam-card {
-          transition: all 0.3s ease;
-        }
-        
-        .admin-exam-card:hover {
-          transform: translateY(-4px);
-          box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
-        }
-        
-        .exam-card-header {
-          display: flex;
-          align-items: center;
-          gap: 0.75rem;
-        }
-        
-        .exam-name {
-          font-weight: 600;
-          font-size: 1.1rem;
-          color: var(--text-primary);
-        }
-        
-        .exam-card-content {
-          padding: 0.5rem 0;
-        }
-        
-        .exam-info {
-          display: flex;
-          flex-direction: column;
-          gap: 0.75rem;
-        }
-        
-        .info-row {
-          display: flex;
-          gap: 1.5rem;
-        }
-        
-        .card-actions-desktop {
-          display: flex;
-          gap: 0.5rem;
-        }
-        
-        .edit-btn {
-          background-color: var(--primary);
-          border-color: var(--primary);
-        }
-        
-        .questions-btn {
-          color: var(--primary);
-          border-color: var(--primary);
-        }
-        
-        .info-icon {
-          color: var(--primary);
-        }
-        
-        .success-icon {
-          color: var(--success);
-        }
-        
-        @media (max-width: 992px) {
-          .info-row {
-            flex-direction: column;
-            gap: 0.75rem;
-          }
-        }
-      `}</style>
-    </ResponsiveCard>
+          </Tooltip>
+        </Group>
+      </Group>
+
+      <Stack gap="xs">
+        <Group gap="lg">
+          <Group gap={4}>
+            <IconClock size={14} color="gray" />
+            <Text size="sm" c="dimmed">Duration:</Text>
+            <Text size="sm" fw={500}>{durationString}</Text>
+          </Group>
+          <Group gap={4}>
+            <IconCircleCheck size={14} color="green" />
+            <Text size="sm" c="dimmed">Pass:</Text>
+            <Text size="sm" fw={500}>{exam.passingMarks}/{exam.totalMarks}</Text>
+          </Group>
+        </Group>
+
+        <Group gap="lg">
+          <Group gap={4}>
+            <IconFileText size={14} color="gray" />
+            <Text size="sm" c="dimmed">Questions:</Text>
+            <Text size="sm" fw={500}>{exam.questions?.length || 0}</Text>
+          </Group>
+          {exam.registeredUsers?.length > 0 && (
+            <Group gap={4}>
+              <IconUsers size={14} color="gray" />
+              <Text size="sm" c="dimmed">Registered:</Text>
+              <Badge size="sm" color="green">{exam.registeredUsers.length}</Badge>
+            </Group>
+          )}
+        </Group>
+
+        <Badge color="blue" variant="light" tt="uppercase" size="sm">
+          Code: {exam.examCode}
+        </Badge>
+      </Stack>
+
+      <Divider my="md" />
+
+      <Group justify="space-between">
+        <Group gap="xs" visibleFrom="sm">
+          <Button size="xs" leftSection={<IconEdit size={14} />} onClick={handleEdit}>
+            Edit
+          </Button>
+          <Button size="xs" variant="light" leftSection={<IconFileText size={14} />} onClick={handleQuestions}>
+            Questions
+          </Button>
+          <Button size="xs" variant="subtle" color="red" leftSection={<IconTrash size={14} />} onClick={handleDelete}>
+            Delete
+          </Button>
+        </Group>
+
+        <Menu shadow="md" width={200} hiddenFrom="sm">
+          <Menu.Target>
+            <Button variant="default" leftSection={<IconDots size={14} />}>Actions</Button>
+          </Menu.Target>
+          <Menu.Dropdown>
+            <Menu.Item leftSection={<IconEdit size={14} />} onClick={handleEdit}>Edit Exam</Menu.Item>
+            <Menu.Item leftSection={<IconFileText size={14} />} onClick={handleQuestions}>Manage Questions</Menu.Item>
+            <Menu.Item leftSection={<IconRefresh size={14} />} onClick={handleRegenerateToken}>Regenerate Token</Menu.Item>
+            <Menu.Divider />
+            <Menu.Item color="red" leftSection={<IconTrash size={14} />} onClick={handleDelete}>Delete Exam</Menu.Item>
+          </Menu.Dropdown>
+        </Menu>
+      </Group>
+    </Card>
   );
 }
 
-// Wrap the component with React.memo to prevent unnecessary re-renders
 export default React.memo(ExamCard);

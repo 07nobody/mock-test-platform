@@ -2,6 +2,7 @@ const router = require("express").Router();
 const Exam = require("../models/examModel");
 const authMiddleware = require("../middlewares/authMiddleware");
 const Question = require("../models/questionModel");
+const { sendExamCodeEmail, sendExamActivationEmail } = require("../services/emailService");
 
 // add exam
 
@@ -69,7 +70,46 @@ router.post("/get-exam-by-id", authMiddleware, async (req, res) => {
 // edit exam by id
 router.post("/edit-exam-by-id", authMiddleware, async (req, res) => {
   try {
-    await Exam.findByIdAndUpdate(req.body.examId, req.body);
+    const examId = req.body.examId;
+    const shouldNotifyUsers = req.body.shouldNotifyUsers;
+    
+    // Find the exam before updating to check status change
+    const existingExam = await Exam.findById(examId);
+    if (!existingExam) {
+      return res.status(404).send({
+        message: "Exam not found",
+        success: false,
+      });
+    }
+
+    const previousStatus = existingExam.status;
+    const newStatus = req.body.status;
+    
+    // Make a copy of the req.body without shouldNotifyUsers
+    const updateData = { ...req.body };
+    delete updateData.shouldNotifyUsers;
+    
+    // Update the exam
+    await Exam.findByIdAndUpdate(examId, updateData);
+    
+    // If status changed from inactive to active and notification was requested
+    if (previousStatus === "inactive" && newStatus === "active" && shouldNotifyUsers) {
+      // Refetch the updated exam to get latest registered users
+      const updatedExam = await Exam.findById(examId);
+      
+      // Get all registered users
+      const registeredUsers = updatedExam.registeredUsers || [];
+      
+      if (registeredUsers.length > 0) {
+        // Send activation notifications
+        const notificationPromises = registeredUsers.map(user => 
+          sendExamActivationEmail(user.email, updatedExam.name, updatedExam.examCode)
+        );
+        
+        await Promise.all(notificationPromises);
+      }
+    }
+    
     res.send({
       message: "Exam edited successfully",
       success: true,
@@ -263,53 +303,160 @@ router.post("/check-registration", authMiddleware, async (req, res) => {
   }
 });
 
-// Helper function to send exam code via email
-async function sendExamCodeEmail(email, examName, examCode) {
-  // Assuming you have nodemailer setup similar to your password reset functionality
-  const nodemailer = require("nodemailer");
-  
-  // Setup email transport - get these from your environment variables
-  const transportConfig = {
-    service: "gmail",
-    auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASS,
-    },
-  };
-
-  // Create reusable transporter
-  const transporter = nodemailer.createTransport(transportConfig);
-
-  const mailOptions = {
-    from: `"Quiz App" <${process.env.EMAIL_USER}>`,
-    to: email,
-    subject: `Exam Registration Confirmation - ${examName}`,
-    html: `
-      <div style="font-family: Arial, sans-serif; padding: 20px; max-width: 600px; margin: 0 auto;">
-        <h2 style="color: #0F3460;">Quiz App - Exam Registration</h2>
-        <p>You have successfully registered for the exam: <strong>${examName}</strong></p>
-        <p>Your exam access code is:</p>
-        <div style="background-color: #f5f5f5; padding: 15px; border-radius: 5px; text-align: center; font-size: 24px; letter-spacing: 5px; margin: 20px 0;">
-          <strong>${examCode}</strong>
-        </div>
-        <p>You will need this code to access the exam when you're ready to take it.</p>
-        <p>Good luck!</p>
-        <p style="color: #666; font-size: 12px; margin-top: 20px;">
-          This is an automated email, please do not reply.
-        </p>
-      </div>
-    `,
-  };
-
+// Get all question categories
+router.post("/question-categories", authMiddleware, async (req, res) => {
   try {
-    await transporter.sendMail(mailOptions);
-    console.log("Exam code email sent successfully");
-    return true;
+    const categories = await Question.distinct("category");
+    res.status(200).send({
+      message: "Categories fetched successfully",
+      success: true,
+      data: categories
+    });
   } catch (error) {
-    console.error("Error sending exam code email:", error);
-    throw new Error("Failed to send exam code email");
+    res.status(500).send({
+      message: error.message,
+      data: error,
+      success: false,
+    });
   }
-}
+});
+
+// Get all question tags
+router.post("/question-tags", authMiddleware, async (req, res) => {
+  try {
+    // This gets all unique tags across all questions
+    const tags = await Question.aggregate([
+      { $unwind: "$tags" },
+      { $group: { _id: "$tags" } },
+      { $sort: { _id: 1 } }
+    ]);
+    
+    res.status(200).send({
+      message: "Tags fetched successfully",
+      success: true,
+      data: tags.map(tag => tag._id)
+    });
+  } catch (error) {
+    res.status(500).send({
+      message: error.message,
+      data: error,
+      success: false,
+    });
+  }
+});
+
+// Bulk upload questions
+router.post("/bulk-upload-questions", authMiddleware, async (req, res) => {
+  try {
+    const { examId, questions } = req.body;
+    
+    if (!examId) {
+      return res.status(400).send({
+        message: "Exam ID is required",
+        success: false,
+      });
+    }
+    
+    if (!questions || !Array.isArray(questions) || questions.length === 0) {
+      return res.status(400).send({
+        message: "Questions array is required and must not be empty",
+        success: false,
+      });
+    }
+    
+    // Find the exam
+    const exam = await Exam.findById(examId);
+    if (!exam) {
+      return res.status(404).send({
+        message: "Exam not found",
+        success: false,
+      });
+    }
+    
+    // Validate each question
+    const validQuestions = questions.filter(q => 
+      q.name && q.correctOption && q.options && 
+      typeof q.options === 'object' && Object.keys(q.options).length > 0
+    );
+    
+    if (validQuestions.length === 0) {
+      return res.status(400).send({
+        message: "No valid questions found in the uploaded data",
+        success: false,
+      });
+    }
+    
+    // Add examId to each question
+    const questionsWithExamId = validQuestions.map(q => ({
+      ...q,
+      exam: examId
+    }));
+    
+    // Insert all questions
+    const insertedQuestions = await Question.insertMany(questionsWithExamId);
+    const questionIds = insertedQuestions.map(q => q._id);
+    
+    // Add questions to exam
+    exam.questions.push(...questionIds);
+    await exam.save();
+    
+    res.status(200).send({
+      message: `${insertedQuestions.length} questions added successfully`,
+      success: true,
+      data: {
+        totalQuestions: questions.length,
+        validQuestions: validQuestions.length,
+        insertedQuestions: insertedQuestions.length
+      }
+    });
+  } catch (error) {
+    res.status(500).send({
+      message: error.message,
+      data: error,
+      success: false,
+    });
+  }
+});
+
+// Search questions by tags or category
+router.post("/search-questions", authMiddleware, async (req, res) => {
+  try {
+    const { tags, category, difficulty, examId } = req.body;
+    
+    let query = {};
+    
+    // Add filters based on provided parameters
+    if (tags && tags.length > 0) {
+      query.tags = { $in: tags };
+    }
+    
+    if (category) {
+      query.category = category;
+    }
+    
+    if (difficulty) {
+      query.difficulty = difficulty;
+    }
+    
+    if (examId) {
+      query.exam = examId;
+    }
+    
+    const questions = await Question.find(query).populate("exam", "name");
+    
+    res.status(200).send({
+      message: "Questions fetched successfully",
+      success: true,
+      data: questions
+    });
+  } catch (error) {
+    res.status(500).send({
+      message: error.message,
+      data: error,
+      success: false,
+    });
+  }
+});
 
 // Regenerate exam token
 router.post("/regenerate-exam-token", authMiddleware, async (req, res) => {
@@ -352,6 +499,190 @@ router.post("/regenerate-exam-token", authMiddleware, async (req, res) => {
       data: {
         examCode: newExamCode
       }
+    });
+  } catch (error) {
+    res.status(500).send({
+      message: error.message,
+      data: error,
+      success: false,
+    });
+  }
+});
+
+// Resend exam code to user
+router.post("/resend-exam-code", authMiddleware, async (req, res) => {
+  try {
+    const { examId } = req.body;
+    const userId = req.body.userId || req.userId;
+    
+    if (!examId) {
+      return res.status(400).send({
+        message: "Exam ID is required",
+        success: false,
+      });
+    }
+
+    // Find the exam
+    const exam = await Exam.findById(examId);
+    if (!exam) {
+      return res.status(404).send({
+        message: "Exam not found",
+        success: false,
+      });
+    }
+
+    // Check if user is registered for this exam
+    const userRegistration = exam.registeredUsers.find(
+      (user) => user.userId.toString() === userId
+    );
+
+    if (!userRegistration) {
+      return res.status(400).send({
+        message: "You are not registered for this exam",
+        success: false,
+      });
+    }
+
+    // Resend the exam code to the user's email
+    await sendExamCodeEmail(userRegistration.email, exam.name, exam.examCode);
+
+    res.status(200).send({
+      message: "Exam code has been resent to your email",
+      success: true,
+    });
+  } catch (error) {
+    res.status(500).send({
+      message: error.message,
+      data: error,
+      success: false,
+    });
+  }
+});
+
+// Notify registered users about exam activation
+router.post("/notify-registered-users", authMiddleware, async (req, res) => {
+  try {
+    const { examId } = req.body;
+    
+    if (!examId) {
+      return res.status(400).send({
+        message: "Exam ID is required",
+        success: false,
+      });
+    }
+
+    // Find the exam
+    const exam = await Exam.findById(examId);
+    if (!exam) {
+      return res.status(404).send({
+        message: "Exam not found",
+        success: false,
+      });
+    }
+
+    // Check if the exam is active
+    if (exam.status !== "active") {
+      return res.status(400).send({
+        message: "Cannot send notifications for inactive exams",
+        success: false,
+      });
+    }
+
+    // Get all registered users
+    const registeredUsers = exam.registeredUsers || [];
+    
+    if (registeredUsers.length === 0) {
+      return res.status(200).send({
+        message: "No registered users to notify",
+        success: true,
+      });
+    }
+
+    // Send activation notifications to all registered users
+    const notificationPromises = registeredUsers.map(user => 
+      sendExamActivationEmail(user.email, exam.name, exam.examCode)
+    );
+    
+    await Promise.all(notificationPromises);
+
+    res.status(200).send({
+      message: `Notifications sent to ${registeredUsers.length} registered users`,
+      success: true,
+    });
+  } catch (error) {
+    res.status(500).send({
+      message: error.message,
+      data: error,
+      success: false,
+    });
+  }
+});
+
+// Update exam status (quick toggle)
+router.post("/update-exam-status", authMiddleware, async (req, res) => {
+  try {
+    const { examId, status, shouldNotifyUsers } = req.body;
+    
+    // Find the exam before updating to check status change
+    const existingExam = await Exam.findById(examId);
+    if (!existingExam) {
+      return res.status(404).send({
+        message: "Exam not found",
+        success: false,
+      });
+    }
+
+    // If trying to activate the exam, validate it first
+    if (status === "active") {
+      // Check if the exam has questions
+      if (!existingExam.questions || existingExam.questions.length === 0) {
+        return res.status(400).send({
+          message: "Cannot activate exam without questions",
+          success: false,
+        });
+      }
+
+      // Check if the exam has the correct number of questions
+      if (existingExam.questions.length !== existingExam.totalMarks) {
+        return res.status(400).send({
+          message: `Number of questions (${existingExam.questions.length}) does not match total marks (${existingExam.totalMarks})`,
+          success: false,
+        });
+      }
+
+      // Check if passing marks are valid
+      if (existingExam.passingMarks > existingExam.totalMarks) {
+        return res.status(400).send({
+          message: "Passing marks cannot be greater than total marks",
+          success: false,
+        });
+      }
+    }
+
+    const previousStatus = existingExam.status;
+    
+    // Update the exam status
+    existingExam.status = status;
+    await existingExam.save();
+    
+    // If status changed from inactive to active and notification was requested
+    if (previousStatus === "inactive" && status === "active" && shouldNotifyUsers) {
+      // Get all registered users
+      const registeredUsers = existingExam.registeredUsers || [];
+      
+      if (registeredUsers.length > 0) {
+        // Send activation notifications
+        const notificationPromises = registeredUsers.map(user => 
+          sendExamActivationEmail(user.email, existingExam.name, existingExam.examCode)
+        );
+        
+        await Promise.all(notificationPromises);
+      }
+    }
+    
+    res.send({
+      message: `Exam status updated to ${status}`,
+      success: true,
     });
   } catch (error) {
     res.status(500).send({

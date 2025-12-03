@@ -76,3 +76,16 @@ export const changePassword = async (payload) => {
         return error.response?.data || { success: false, message: "Could not change password" };
     }
 }
+
+// Get user statistics (for profile)
+export const getUserStats = async () => {
+  try {
+    const response = await axiosInstance.get(`/leaderboard/user-stats?userId=${localStorage.getItem("userId")}`);
+    return response.data;
+  } catch (error) {
+    return error.response?.data || {
+      success: false,
+      message: "Error fetching user statistics"
+    };
+  }
+};

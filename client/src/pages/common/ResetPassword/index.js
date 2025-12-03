@@ -1,116 +1,133 @@
-import React, { useState, useEffect } from "react";
-import { Form, message } from "antd";
-import { useNavigate, useParams } from "react-router-dom";
-import axiosInstance from "../../../apicalls";
+import React, { useState } from 'react';
+import { Link, useNavigate, useParams } from 'react-router-dom';
+import {
+  Paper,
+  PasswordInput,
+  Button,
+  Title,
+  Text,
+  Container,
+  Stack,
+  Box,
+  Divider,
+  Alert,
+} from '@mantine/core';
+import { useForm } from '@mantine/form';
+import { IconLock, IconArrowLeft, IconAt } from '@tabler/icons-react';
+import axiosInstance from '../../../apicalls';
+import { message } from '../../../utils/notifications';
 
 function ResetPassword() {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const { email } = useParams();
-  
-  const [formValues, setFormValues] = useState({
-    password: "",
-    confirmPassword: "",
+
+  const form = useForm({
+    initialValues: {
+      password: '',
+      confirmPassword: '',
+    },
+    validate: {
+      password: (value) => (value.length >= 6 ? null : 'Password must be at least 6 characters'),
+      confirmPassword: (value, values) =>
+        value === values.password ? null : 'Passwords do not match',
+    },
   });
 
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setFormValues((prevValues) => ({ ...prevValues, [name]: value || "" }));
-  };
-
-  const onFinish = async (values) => {
+  const onSubmit = async (values) => {
     try {
       if (!email) {
-        message.error("Email is required. Please try the password reset process again.");
+        message.error('Email is required. Please try the password reset process again.');
         return;
       }
 
       setLoading(true);
-      const response = await axiosInstance.post("/users/reset-password", {
+      const response = await axiosInstance.post('/users/reset-password', {
         email: decodeURIComponent(email),
-        newPassword: values.password
+        newPassword: values.password,
       });
-      
+
       setLoading(false);
       if (response.data.success) {
         message.success(response.data.message);
-        navigate("/login");
+        navigate('/login');
       } else {
         message.error(response.data.message);
       }
     } catch (error) {
       setLoading(false);
-      message.error(error.response?.data?.message || "Something went wrong");
+      message.error(error.response?.data?.message || 'Something went wrong');
     }
   };
 
   return (
-    <div className="flex justify-center items-center h-screen w-screen bg-primary">
-      <div className="card w-400 p-3 bg-white">
-        <div className="flex flex-col">
-          <h1 className="text-2xl">Reset Password</h1>
-          <p className="text-md">Email: {decodeURIComponent(email)}</p>
-          <div className="divider"></div>
-          <Form layout="vertical" onFinish={onFinish}>
-            {/* Hidden input for accessibility */}
-            <input 
-              type="hidden" 
-              id="username" 
-              name="username" 
-              autoComplete="username" 
-              value={decodeURIComponent(email) || ""} 
-            />
-            
-            <Form.Item
-              name="password"
-              label="New Password"
-              rules={[{ required: true, message: "Please input your new password!" }]}
-            >
-              <input
-                type="password"
-                name="password"
-                value={formValues.password}
-                onChange={handleInputChange}
-                autoComplete="new-password"
-              />
-            </Form.Item>
-            
-            <Form.Item
-              name="confirmPassword"
-              label="Confirm Password"
-              dependencies={["password"]}
-              rules={[
-                { required: true, message: "Please confirm your password!" },
-                ({ getFieldValue }) => ({
-                  validator(_, value) {
-                    if (!value || getFieldValue("password") === value) {
-                      return Promise.resolve();
-                    }
-                    return Promise.reject(new Error("Passwords do not match!"));
-                  },
-                }),
-              ]}
-            >
-              <input
-                type="password"
-                name="confirmPassword"
-                value={formValues.confirmPassword}
-                onChange={handleInputChange}
-                autoComplete="new-password"
-              />
-            </Form.Item>
-            
-            <button
-              type="submit"
-              className="primary-contained-btn mt-2 w-100"
-              disabled={loading}
-            >
-              {loading ? "Resetting..." : "Reset Password"}
-            </button>
-          </Form>
-        </div>
-      </div>
-    </div>
+    <Box className="auth-page-container">
+      <Container size={1000} w="100%">
+        <Paper radius="lg" shadow="xl" className="auth-split-card">
+          {/* Left branding panel */}
+          <Box visibleFrom="md" className="auth-branding-panel">
+            <Box className="auth-branding-bg" />
+            <Title order={1} c="white" pos="relative" className="z-1">
+              Mock Test Platform
+            </Title>
+            <Text size="xl" c="white" opacity={0.9} mt="sm" pos="relative" className="z-1">
+              Test Your Knowledge
+            </Text>
+          </Box>
+
+          {/* Right form panel */}
+          <Box p="xl" className="auth-form-panel">
+            <Title order={2} ta="center" mb="xs">
+              Reset Password
+            </Title>
+            <Text c="dimmed" size="sm" ta="center" mb="md">
+              Create a new password for your account
+            </Text>
+
+            <Alert icon={<IconAt size={16} />} color="blue" mb="lg">
+              {decodeURIComponent(email)}
+            </Alert>
+
+            <form onSubmit={form.onSubmit(onSubmit)}>
+              <Stack gap="md">
+                <PasswordInput
+                  label="New Password"
+                  placeholder="Enter new password"
+                  size="md"
+                  leftSection={<IconLock size={18} stroke={1.5} />}
+                  {...form.getInputProps('password')}
+                />
+
+                <PasswordInput
+                  label="Confirm Password"
+                  placeholder="Confirm new password"
+                  size="md"
+                  leftSection={<IconLock size={18} stroke={1.5} />}
+                  {...form.getInputProps('confirmPassword')}
+                />
+
+                <Button type="submit" fullWidth size="md" loading={loading} mt="md">
+                  Reset Password
+                </Button>
+
+                <Divider my="sm" />
+
+                <Button
+                  component={Link}
+                  to="/login"
+                  variant="subtle"
+                  fullWidth
+                  size="md"
+                  leftSection={<IconArrowLeft size={18} stroke={1.5} />}
+                >
+                  Back to Login
+                </Button>
+              </Stack>
+            </form>
+          </Box>
+        </Paper>
+      </Container>
+    </Box>
   );
 }
 

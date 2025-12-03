@@ -34,7 +34,7 @@ const examSchema = new mongoose.Schema(
       }
     },
     isPaid: {
-      type: Boolean,
+      type: mongoose.Schema.Types.Mixed, // Changed from Boolean to Mixed to support both boolean and object formats
       default: false,
     },
     price: {

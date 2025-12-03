@@ -1,17 +1,13 @@
 import React from 'react';
-import { Button, Space } from 'antd';
-import { useMessage } from './MessageProvider';
+import { Button, Group, Stack, Text } from '@mantine/core';
+import { message } from '../utils/notifications';
 
 /**
- * Example component demonstrating how to use the optimized message API
+ * Example component demonstrating how to use the notification API
  * 
- * This shows how to replace direct imports of message from 'antd'
- * with the useMessage hook from our custom MessageProvider
+ * This shows how to use the message utility from our notifications module
  */
 const MessageUsageExample = () => {
-  // Use our custom hook instead of importing from antd directly
-  const message = useMessage();
-
   const showSuccess = () => {
     message.success('This is a success message');
   };
@@ -29,26 +25,26 @@ const MessageUsageExample = () => {
   };
 
   const showLoading = () => {
-    const hide = message.loading('Action in progress...', 0);
+    const id = message.loading('Action in progress...');
     // Dismiss the loading message after 2.5 seconds
-    setTimeout(hide, 2500);
+    setTimeout(() => message.update(id, { loading: false, message: 'Done!' }), 2500);
   };
 
   return (
-    <Space direction="vertical">
-      <h3>Message Examples</h3>
-      <Space>
-        <Button type="primary" onClick={showSuccess}>Success</Button>
-        <Button danger onClick={showError}>Error</Button>
-        <Button type="dashed" onClick={showWarning}>Warning</Button>
-        <Button onClick={showInfo}>Info</Button>
-        <Button type="default" onClick={showLoading}>Loading</Button>
-      </Space>
-      <p>
-        Note: Replace direct imports of message from 'antd' with useMessage() in your components
-        to benefit from the performance optimizations.
-      </p>
-    </Space>
+    <Stack gap="md">
+      <Text fw={500} size="lg">Message Examples</Text>
+      <Group>
+        <Button onClick={showSuccess}>Success</Button>
+        <Button color="red" onClick={showError}>Error</Button>
+        <Button variant="outline" onClick={showWarning}>Warning</Button>
+        <Button variant="default" onClick={showInfo}>Info</Button>
+        <Button variant="light" onClick={showLoading}>Loading</Button>
+      </Group>
+      <Text size="sm" c="dimmed">
+        Note: Use message from utils/notifications in your components
+        for consistent notifications.
+      </Text>
+    </Stack>
   );
 };
 

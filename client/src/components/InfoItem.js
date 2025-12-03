@@ -1,23 +1,16 @@
-import React from "react";
+import React from 'react';
+import { Group, Text } from '@mantine/core';
 
 /**
- * InfoItem - A reusable component for displaying label-value pairs
- * 
- * @param {Object} props - Component props
- * @param {string|React.ReactNode} props.label - The label text
- * @param {string|React.ReactNode} props.value - The value to display
- * @param {React.ReactNode} props.icon - Optional icon to display
- * @param {string} props.className - Additional CSS classes
+ * InfoItem - A simple label/value display component
  */
-function InfoItem({ label, value, icon, className = "" }) {
-  const classes = ["info-item", className].filter(Boolean).join(" ");
-
+function InfoItem({ icon, label, value, className }) {
   return (
-    <div className={classes}>
-      {icon && <span className="info-icon">{icon}</span>}
-      <span className="info-label">{label}</span>
-      <span className="info-value">{value}</span>
-    </div>
+    <Group gap="xs" className={className}>
+      {icon}
+      <Text size="sm" c="dimmed">{label}</Text>
+      <Text size="sm" fw={500}>{value}</Text>
+    </Group>
   );
 }
 

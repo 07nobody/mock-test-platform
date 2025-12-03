@@ -51,3 +51,16 @@ export const checkPaymentStatus = async (payload) => {
     };
   }
 };
+
+// Get all payments (admin only)
+export const getAllPayments = async (filters = {}) => {
+  try {
+    const response = await axiosInstance.post("/payments/get-all-payments", filters);
+    return response.data;
+  } catch (error) {
+    return error.response?.data || { 
+      success: false, 
+      message: "Failed to fetch payments." 
+    };
+  }
+};

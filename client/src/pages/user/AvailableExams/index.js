@@ -1,25 +1,49 @@
 import React, { useEffect, useState, useCallback } from "react";
-import { message, Table, Select, Input, Button, Tag, Tooltip, Empty, Modal, Space, Badge, Result, Radio } from "antd";
+import { 
+  Container,
+  Title,
+  Text,
+  Table, 
+  Select, 
+  TextInput, 
+  Button, 
+  Badge, 
+  Tooltip, 
+  Modal, 
+  Group, 
+  SegmentedControl,
+  Paper,
+  Stack,
+  Box,
+  ScrollArea,
+  Card,
+  SimpleGrid,
+  ThemeIcon,
+  Progress,
+  Divider,
+  Alert
+} from "@mantine/core";
 import { useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { HideLoading, ShowLoading } from "../../../redux/loaderSlice";
-import { getAllExams, registerForExam, checkExamRegistration } from "../../../apicalls/exams";
-import PageTitle from "../../../components/PageTitle";
-import AvailableExamCard from "../../../components/AvailableExamCard";
+import { getAllExams, registerForExam, checkExamRegistration, resendExamCode } from "../../../apicalls/exams";
+import { message } from "../../../utils/notifications";
 import { 
-  SearchOutlined, 
-  FieldTimeOutlined, 
-  BookOutlined, 
-  CheckCircleOutlined,
-  DollarOutlined,
-  UserAddOutlined,
-  MailOutlined,
-  LockOutlined,
-  TableOutlined,
-  AppstoreOutlined
-} from "@ant-design/icons";
-
-const { Option } = Select;
+  IconSearch, 
+  IconClock, 
+  IconBook, 
+  IconCircleCheck,
+  IconCurrencyDollar,
+  IconUserPlus,
+  IconLock,
+  IconTable,
+  IconLayoutGrid,
+  IconSend,
+  IconFileOff,
+  IconTrophy,
+  IconQuestionMark,
+  IconMail
+} from "@tabler/icons-react";
 
 function AvailableExams() {
   const navigate = useNavigate();
@@ -35,17 +59,18 @@ function AvailableExams() {
   const [showRegistrationModal, setShowRegistrationModal] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [selectedExam, setSelectedExam] = useState(null);
-  const [viewMode, setViewMode] = useState("cards"); // 'table' or 'cards'
-  const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+  const [viewMode, setViewMode] = useState("cards");
 
-  useEffect(() => {
-    const handleResize = () => {
-      setIsMobile(window.innerWidth <= 768);
-    };
-
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
+  const checkRegistrationStatus = async (examId) => {
+    try {
+      const response = await checkExamRegistration({ examId, userId: user._id });
+      if (response.success) {
+        setRegistrationStatus(prev => ({ ...prev, [examId]: response.data }));
+      }
+    } catch (error) {
+      console.error("Error checking registration status:", error);
+    }
+  };
 
   const getExamsData = useCallback(async () => {
     try {
@@ -54,23 +79,12 @@ function AvailableExams() {
       dispatch(HideLoading());
       
       if (response.success) {
-        const activeExams = response.data.filter(
-          (exam) => exam.status === "active"
-        );
-        
+        const activeExams = response.data.filter((exam) => exam.status === "active");
         setExams(activeExams);
         setFilteredExams(activeExams);
         
-        // Extract unique categories
-        const uniqueCategories = [
-          ...new Set(activeExams.map((exam) => exam.category)),
-        ];
+        const uniqueCategories = [...new Set(activeExams.map((exam) => exam.category))];
         setCategories(uniqueCategories);
-        
-        // Check registration status for each exam
-        activeExams.forEach(exam => {
-          checkRegistrationStatus(exam._id);
-        });
       } else {
         message.error(response.message);
       }
@@ -78,25 +92,8 @@ function AvailableExams() {
       dispatch(HideLoading());
       message.error(error.message);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dispatch]);
-  
-  const checkRegistrationStatus = async (examId) => {
-    try {
-      const response = await checkExamRegistration({
-        examId,
-        userId: user._id
-      });
-      
-      if (response.success) {
-        setRegistrationStatus(prev => ({
-          ...prev,
-          [examId]: response.data
-        }));
-      }
-    } catch (error) {
-      console.error("Error checking registration status:", error);
-    }
-  };
   
   const handleRegisterClick = (exam) => {
     setSelectedExam(exam);
@@ -107,10 +104,7 @@ function AvailableExams() {
     if (!selectedExam) return;
     
     try {
-      setRegistrationLoading(prev => ({
-        ...prev,
-        [selectedExam._id]: true
-      }));
+      setRegistrationLoading(prev => ({ ...prev, [selectedExam._id]: true }));
       
       const response = await registerForExam({
         examId: selectedExam._id,
@@ -121,21 +115,37 @@ function AvailableExams() {
       if (response.success) {
         await checkRegistrationStatus(selectedExam._id);
         setShowRegistrationModal(false);
-        setShowSuccessModal(true);
+        
+        if (selectedExam.isPaid) {
+          navigate(`/payment-portal/${selectedExam._id}`);
+        } else {
+          setShowSuccessModal(true);
+        }
       } else {
         message.error(response.message);
       }
       
-      setRegistrationLoading(prev => ({
-        ...prev,
-        [selectedExam._id]: false
-      }));
+      setRegistrationLoading(prev => ({ ...prev, [selectedExam._id]: false }));
     } catch (error) {
-      setRegistrationLoading(prev => ({
-        ...prev,
-        [selectedExam._id]: false
-      }));
+      setRegistrationLoading(prev => ({ ...prev, [selectedExam._id]: false }));
       message.error("Failed to register for exam: " + error.message);
+    }
+  };
+
+  const handleResendCode = async (examId) => {
+    try {
+      dispatch(ShowLoading());
+      const response = await resendExamCode({ examId });
+      dispatch(HideLoading());
+      
+      if (response.success) {
+        message.success("Exam code has been resent to your email!");
+      } else {
+        message.error(response.message || "Failed to resend exam code");
+      }
+    } catch (error) {
+      dispatch(HideLoading());
+      message.error("Failed to resend exam code: " + error.message);
     }
   };
 
@@ -144,10 +154,12 @@ function AvailableExams() {
   }, [getExamsData]);
 
   useEffect(() => {
-    handleFilter();
-  }, [searchTerm, selectedCategory, exams]);
+    // Check registration status for all exams when exams are loaded
+    exams.forEach(exam => checkRegistrationStatus(exam._id));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [exams]);
 
-  const handleFilter = () => {
+  useEffect(() => {
     let filtered = [...exams];
     
     if (searchTerm) {
@@ -159,574 +171,356 @@ function AvailableExams() {
     }
     
     if (selectedCategory) {
-      filtered = filtered.filter(
-        (exam) => exam.category === selectedCategory
-      );
+      filtered = filtered.filter((exam) => exam.category === selectedCategory);
     }
     
     setFilteredExams(filtered);
+  }, [searchTerm, selectedCategory, exams]);
+
+  const getDifficulty = (passingMarks, totalMarks) => {
+    const ratio = passingMarks / totalMarks;
+    if (ratio >= 0.9) return { label: "Hard", color: "red" };
+    if (ratio >= 0.75) return { label: "Medium", color: "orange" };
+    return { label: "Easy", color: "green" };
   };
 
-  const getDifficultyTag = (marks, totalQuestions) => {
-    const ratio = marks / totalQuestions;
-    if (ratio >= 0.9) return <Tag color="red">Hard</Tag>;
-    if (ratio >= 0.75) return <Tag color="orange">Moderate</Tag>;
-    return <Tag color="green">Easy</Tag>;
+  const getStatusInfo = (exam) => {
+    const status = registrationStatus[exam._id];
+    if (!status?.isRegistered) return { label: "Not Registered", color: "gray" };
+    if (exam.isPaid && status.paymentStatus !== "completed") return { label: "Payment Pending", color: "orange" };
+    return { label: "Registered", color: "green" };
   };
 
-  const columns = [
-    {
-      title: "Exam Name",
-      dataIndex: "name",
-      render: (text, record) => (
-        <div className="exam-name-cell">
-          <div className="exam-title">
-            {text}
-            {record.isPaid && (
-              <Tag color="gold" style={{ marginLeft: 8 }}>
-                <DollarOutlined /> Paid
-              </Tag>
-            )}
-          </div>
-          <div className="exam-category">
-            <BookOutlined style={{ marginRight: 8 }} />
-            {record.category}
-          </div>
-        </div>
-      ),
-    },
-    {
-      title: "Duration",
-      dataIndex: "duration",
-      render: (duration) => (
-        <Tooltip title={`${duration} seconds`}>
-          <div className="duration-cell">
-            <FieldTimeOutlined style={{ marginRight: 8 }} />
-            {Math.floor(duration / 60)} mins
-          </div>
-        </Tooltip>
-      ),
-    },
-    {
-      title: "Questions",
-      dataIndex: "questions",
-      render: (questions) => questions?.length || 0,
-    },
-    {
-      title: "Difficulty",
-      dataIndex: "passingMarks",
-      render: (passingMarks, record) => 
-        getDifficultyTag(passingMarks, record.totalMarks),
-    },
-    {
-      title: "Pass Score",
-      dataIndex: "totalMarks",
-      render: (totalMarks, record) => (
-        <span>
-          <CheckCircleOutlined style={{ color: 'green', marginRight: 8 }} />
-          {record.passingMarks}/{totalMarks}
-        </span>
-      ),
-    },
-    {
-      title: "Status",
-      key: "registrationStatus",
-      render: (_, record) => {
-        const status = registrationStatus[record._id];
-        if (!status) return <Tag>Not Registered</Tag>;
-        
-        if (status.isRegistered) {
-          if (record.isPaid && status.paymentStatus !== "completed") {
-            return <Tag color="orange">Payment Pending</Tag>;
-          }
-          return <Tag color="green">Registered</Tag>;
-        }
-        return <Tag>Not Registered</Tag>;
-      }
-    },
-    {
-      title: "Action",
-      dataIndex: "action",
-      render: (_, record) => {
-        const status = registrationStatus[record._id];
-        const isRegistered = status?.isRegistered;
-        const isPaid = record.isPaid;
-        const paymentComplete = !isPaid || (status?.paymentStatus === "completed");
-        
-        if (isRegistered && paymentComplete) {
-          return (
-            <Space>
-              <Tooltip title="Exam code sent to your email">
-                <Button
-                  type="default"
-                  icon={<MailOutlined />}
-                  size="small"
-                />
-              </Tooltip>
-              <Button 
-                type="primary" 
-                onClick={() => navigate(`/user/write-exam/${record._id}`)}
-                className="start-exam-btn"
-              >
-                Start Exam
-              </Button>
-            </Space>
-          );
-        }
-        
-        if (isRegistered && !paymentComplete) {
-          return (
-            <Button
-              type="primary" 
-              icon={<DollarOutlined />}
-              onClick={() => navigate(`/payment-portal/${record._id}`)}
-              className="payment-btn"
-              danger
-            >
-              Complete Payment
+  const renderActionButton = (exam) => {
+    const status = registrationStatus[exam._id];
+    const isRegistered = status?.isRegistered;
+    const paymentComplete = !exam.isPaid || (status?.paymentStatus === "completed");
+    
+    if (isRegistered && paymentComplete) {
+      return (
+        <Group gap="xs">
+          <Tooltip label="Resend exam code">
+            <Button variant="light" size="xs" onClick={() => handleResendCode(exam._id)}>
+              <IconSend size={14} />
             </Button>
-          );
-        }
-        
-        return (
-          <Button
-            type="primary" 
-            icon={<UserAddOutlined />}
-            onClick={() => handleRegisterClick(record)}
-            loading={registrationLoading[record._id]}
-            className="register-btn"
-          >
-            Register
+          </Tooltip>
+          <Button size="xs" onClick={() => navigate(`/user/write-exam/${exam._id}`)}>
+            Start Exam
           </Button>
-        );
-      },
-    },
-  ];
+        </Group>
+      );
+    }
+    
+    if (isRegistered && !paymentComplete) {
+      return (
+        <Button 
+          size="xs" 
+          color="orange"
+          leftSection={<IconCurrencyDollar size={14} />}
+          onClick={() => navigate(`/payment-portal/${exam._id}`)}
+        >
+          Pay ₹{exam.price}
+        </Button>
+      );
+    }
+    
+    return (
+      <Button
+        size="xs"
+        color="green"
+        leftSection={<IconUserPlus size={14} />}
+        onClick={() => handleRegisterClick(exam)}
+        loading={registrationLoading[exam._id]}
+      >
+        Register
+      </Button>
+    );
+  };
 
   const renderTableView = () => (
-    <Table
-      columns={columns}
-      dataSource={filteredExams}
-      rowKey="_id"
-      pagination={{
-        pageSize: 10,
-        hideOnSinglePage: true,
-        showSizeChanger: false,
-      }}
-      className="exams-table"
-      scroll={{ x: 'max-content' }}
-    />
+    <Paper withBorder radius="md">
+      <ScrollArea>
+        <Table striped highlightOnHover>
+          <Table.Thead>
+            <Table.Tr>
+              <Table.Th>Exam</Table.Th>
+              <Table.Th>Duration</Table.Th>
+              <Table.Th>Questions</Table.Th>
+              <Table.Th>Difficulty</Table.Th>
+              <Table.Th>Pass Score</Table.Th>
+              <Table.Th>Status</Table.Th>
+              <Table.Th>Action</Table.Th>
+            </Table.Tr>
+          </Table.Thead>
+          <Table.Tbody>
+            {filteredExams.map((exam) => {
+              const difficulty = getDifficulty(exam.passingMarks, exam.totalMarks);
+              const statusInfo = getStatusInfo(exam);
+              
+              return (
+                <Table.Tr key={exam._id}>
+                  <Table.Td>
+                    <Group gap="xs">
+                      <Text fw={500}>{exam.name}</Text>
+                      {exam.isPaid && (
+                        <Badge size="xs" color="yellow">Paid</Badge>
+                      )}
+                    </Group>
+                    <Text size="xs" c="dimmed">{exam.category}</Text>
+                  </Table.Td>
+                  <Table.Td>
+                    <Group gap={4}>
+                      <IconClock size={14} />
+                      {Math.floor(exam.duration / 60)} min
+                    </Group>
+                  </Table.Td>
+                  <Table.Td>{exam.questions?.length || 0}</Table.Td>
+                  <Table.Td>
+                    <Badge color={difficulty.color} variant="light">{difficulty.label}</Badge>
+                  </Table.Td>
+                  <Table.Td>{exam.passingMarks}/{exam.totalMarks}</Table.Td>
+                  <Table.Td>
+                    <Badge color={statusInfo.color} variant="light">{statusInfo.label}</Badge>
+                  </Table.Td>
+                  <Table.Td>{renderActionButton(exam)}</Table.Td>
+                </Table.Tr>
+              );
+            })}
+          </Table.Tbody>
+        </Table>
+      </ScrollArea>
+    </Paper>
   );
 
   const renderCardView = () => (
-    <div className="exams-card-container">
-      {filteredExams.map(exam => (
-        <AvailableExamCard 
-          key={exam._id}
-          exam={exam}
-          registrationStatus={registrationStatus[exam._id]}
-          onRegisterClick={handleRegisterClick}
-          registrationLoading={registrationLoading[exam._id]}
-        />
-      ))}
-    </div>
+    <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md">
+      {filteredExams.map((exam) => {
+        const difficulty = getDifficulty(exam.passingMarks, exam.totalMarks);
+        const statusInfo = getStatusInfo(exam);
+        const difficultyPercent = (exam.passingMarks / exam.totalMarks) * 100;
+        
+        return (
+          <Card key={exam._id} withBorder padding="lg" radius="md">
+            <Group justify="space-between" mb="xs">
+              <Badge color={difficulty.color} variant="light">{difficulty.label}</Badge>
+              {exam.isPaid && (
+                <Badge color="yellow" variant="light" leftSection={<IconCurrencyDollar size={12} />}>
+                  ₹{exam.price}
+                </Badge>
+              )}
+            </Group>
+
+            <Text fw={600} size="lg" mb="xs" lineClamp={2}>{exam.name}</Text>
+            
+            <Badge variant="outline" size="sm" mb="md">{exam.category}</Badge>
+
+            <SimpleGrid cols={3} spacing="xs" mb="md">
+              <Box ta="center">
+                <ThemeIcon variant="light" size="md" mb={4}>
+                  <IconClock size={14} />
+                </ThemeIcon>
+                <Text size="xs" c="dimmed">Duration</Text>
+                <Text size="sm" fw={500}>{Math.floor(exam.duration / 60)} min</Text>
+              </Box>
+              <Box ta="center">
+                <ThemeIcon variant="light" size="md" mb={4}>
+                  <IconQuestionMark size={14} />
+                </ThemeIcon>
+                <Text size="xs" c="dimmed">Questions</Text>
+                <Text size="sm" fw={500}>{exam.questions?.length || 0}</Text>
+              </Box>
+              <Box ta="center">
+                <ThemeIcon variant="light" size="md" mb={4}>
+                  <IconTrophy size={14} />
+                </ThemeIcon>
+                <Text size="xs" c="dimmed">Pass</Text>
+                <Text size="sm" fw={500}>{exam.passingMarks}/{exam.totalMarks}</Text>
+              </Box>
+            </SimpleGrid>
+
+            <Box mb="md">
+              <Group justify="space-between" mb={4}>
+                <Text size="xs" c="dimmed">Difficulty Level</Text>
+                <Text size="xs" c={difficulty.color}>{difficulty.label}</Text>
+              </Group>
+              <Progress value={difficultyPercent} color={difficulty.color} size="xs" radius="xl" />
+            </Box>
+
+            <Divider mb="md" />
+
+            <Group justify="space-between">
+              <Badge color={statusInfo.color} variant="dot">{statusInfo.label}</Badge>
+              {renderActionButton(exam)}
+            </Group>
+          </Card>
+        );
+      })}
+    </SimpleGrid>
   );
 
   return (
-    <div className="available-exams-container">
-      <div className="header">
-        <PageTitle title="Available Exams" />
-        <div className="filters">
-          <Input
-            prefix={<SearchOutlined />}
+    <Container size="xl" py="md">
+      <Group justify="space-between" mb="lg" wrap="wrap">
+        <Group gap="sm">
+          <ThemeIcon size={40} radius="md" variant="gradient" gradient={{ from: 'violet', to: 'indigo' }}>
+            <IconBook size={22} />
+          </ThemeIcon>
+          <Box>
+            <Title order={2}>Available Exams</Title>
+            <Text c="dimmed" size="sm">Browse and register for exams</Text>
+          </Box>
+        </Group>
+        
+        <Group gap="sm" wrap="wrap">
+          <TextInput
+            leftSection={<IconSearch size={16} />}
             placeholder="Search exams..."
-            className="search-input"
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            onChange={(e) => setSearchTerm(e.currentTarget.value)}
+            w={200}
           />
           <Select
-            placeholder="Select category"
-            className="category-select"
+            placeholder="Category"
             value={selectedCategory}
             onChange={setSelectedCategory}
-            allowClear
-            style={{ width: 200 }}
-          >
-            {categories.map((category) => (
-              <Option key={category} value={category}>{category}</Option>
-            ))}
-          </Select>
-          <Radio.Group value={viewMode} onChange={(e) => setViewMode(e.target.value)} buttonStyle="solid">
-            <Radio.Button value="cards"><AppstoreOutlined /> Cards</Radio.Button>
-            <Radio.Button value="table"><TableOutlined /> Table</Radio.Button>
-          </Radio.Group>
-        </div>
-      </div>
-      <div className="divider"></div>
+            clearable
+            data={categories.map(c => ({ value: c, label: c }))}
+            w={150}
+          />
+          <SegmentedControl
+            value={viewMode}
+            onChange={setViewMode}
+            data={[
+              { label: <Group gap={4}><IconLayoutGrid size={16} />Cards</Group>, value: 'cards' },
+              { label: <Group gap={4}><IconTable size={16} />Table</Group>, value: 'table' },
+            ]}
+          />
+        </Group>
+      </Group>
 
       {filteredExams.length > 0 ? (
         viewMode === 'table' ? renderTableView() : renderCardView()
       ) : (
-        <Empty 
-          description="No exams available matching your criteria" 
-          className="no-exams-found"
-        />
+        <Paper withBorder p="xl" radius="md">
+          <Stack align="center" py="xl">
+            <ThemeIcon size={64} variant="light" color="gray" radius="xl">
+              <IconFileOff size={32} />
+            </ThemeIcon>
+            <Text c="dimmed" size="lg">No exams found</Text>
+            <Text c="dimmed" size="sm">Try adjusting your search or filters</Text>
+          </Stack>
+        </Paper>
       )}
       
       {/* Registration Modal */}
       <Modal
-        title={
-          selectedExam?.isPaid 
-            ? "Paid Exam Registration" 
-            : "Exam Registration"
-        }
-        open={showRegistrationModal}
-        onCancel={() => setShowRegistrationModal(false)}
-        footer={null}
+        title={selectedExam?.isPaid ? "Paid Exam Registration" : "Exam Registration"}
+        opened={showRegistrationModal}
+        onClose={() => setShowRegistrationModal(false)}
+        size="md"
       >
         {selectedExam && (
-          <div className="registration-modal-content">
-            <h3>{selectedExam.name}</h3>
+          <Stack gap="md">
+            <Text fw={600} size="lg">{selectedExam.name}</Text>
             
             {registrationStatus[selectedExam?._id]?.isRegistered ? (
-              <div>
-                <div className="registration-status">
-                  <Badge status="success" text="You are registered for this exam" />
-                </div>
+              <Stack gap="md">
+                <Alert color="green" icon={<IconCircleCheck size={16} />}>
+                  You are registered for this exam
+                </Alert>
                 
-                {selectedExam.isPaid && (
-                  <div className="payment-status">
-                    <p>Payment Status: {' '}
-                      {registrationStatus[selectedExam._id].paymentStatus === "completed" 
-                        ? <Tag color="green">Completed</Tag> 
-                        : <Tag color="orange">Pending</Tag>
-                      }
-                    </p>
-                    
-                    {registrationStatus[selectedExam._id].paymentStatus !== "completed" && (
-                      <Button type="primary" danger>
-                        Complete Payment (₹{selectedExam.price})
-                      </Button>
-                    )}
-                  </div>
+                {selectedExam.isPaid && registrationStatus[selectedExam._id].paymentStatus !== "completed" && (
+                  <Alert color="orange" icon={<IconCurrencyDollar size={16} />}>
+                    Payment pending - ₹{selectedExam.price}
+                  </Alert>
                 )}
                 
-                <div className="exam-access">
-                  <p>Your exam code has been sent to your email: <strong>{user.email}</strong></p>
-                  <Button 
-                    type="primary" 
-                    onClick={() => navigate(`/user/write-exam/${selectedExam._id}`)}
-                  >
-                    Go to Exam
-                  </Button>
-                </div>
-              </div>
+                <Paper withBorder p="md" radius="md">
+                  <Group gap="xs" mb="xs">
+                    <IconMail size={16} />
+                    <Text size="sm">Exam code sent to: <Text span fw={500}>{user.email}</Text></Text>
+                  </Group>
+                  <Group gap="xs">
+                    <Button onClick={() => navigate(`/user/write-exam/${selectedExam._id}`)}>
+                      Go to Exam
+                    </Button>
+                    <Button variant="light" leftSection={<IconSend size={14} />} onClick={() => handleResendCode(selectedExam._id)}>
+                      Resend Code
+                    </Button>
+                  </Group>
+                </Paper>
+              </Stack>
             ) : (
-              <div>
-                <p>You are about to register for this exam.</p>
+              <Stack gap="md">
+                <Text c="dimmed">You are about to register for this exam.</Text>
                 
-                <div className="exam-details-card">
-                  <div className="detail-item">
-                    <span className="label">Category:</span>
-                    <span className="value">{selectedExam.category}</span>
-                  </div>
-                  <div className="detail-item">
-                    <span className="label">Duration:</span>
-                    <span className="value">{Math.floor(selectedExam.duration / 60)} minutes</span>
-                  </div>
-                  <div className="detail-item">
-                    <span className="label">Total Questions:</span>
-                    <span className="value">{selectedExam.questions?.length || 0}</span>
-                  </div>
-                  <div className="detail-item">
-                    <span className="label">Pass Score:</span>
-                    <span className="value">{selectedExam.passingMarks}/{selectedExam.totalMarks}</span>
-                  </div>
-                </div>
+                <Paper withBorder p="md" radius="md">
+                  <SimpleGrid cols={2} spacing="xs">
+                    <Text size="sm" c="dimmed">Category:</Text>
+                    <Text size="sm" fw={500}>{selectedExam.category}</Text>
+                    <Text size="sm" c="dimmed">Duration:</Text>
+                    <Text size="sm" fw={500}>{Math.floor(selectedExam.duration / 60)} minutes</Text>
+                    <Text size="sm" c="dimmed">Questions:</Text>
+                    <Text size="sm" fw={500}>{selectedExam.questions?.length || 0}</Text>
+                    <Text size="sm" c="dimmed">Pass Score:</Text>
+                    <Text size="sm" fw={500}>{selectedExam.passingMarks}/{selectedExam.totalMarks}</Text>
+                  </SimpleGrid>
+                </Paper>
                 
-                <div className="token-info">
-                  <LockOutlined className="token-icon" />
-                  <div className="token-text">
-                    <h4>Exam Access</h4>
-                    <p>After registration, an exam token will be emailed to: <strong>{user.email}</strong></p>
-                    <p>You'll need this token to access the exam.</p>
-                  </div>
-                </div>
+                <Alert color="blue" icon={<IconLock size={16} />}>
+                  <Text size="sm">After registration, an exam token will be emailed to <Text span fw={500}>{user.email}</Text></Text>
+                </Alert>
                 
                 {selectedExam.isPaid && (
-                  <div className="exam-payment-info">
-                    <h4><DollarOutlined /> Paid Exam</h4>
-                    <p><strong>Price:</strong> ₹{selectedExam.price}</p>
-                    <p>After registration, you will need to complete the payment to access the exam.</p>
-                  </div>
+                  <Alert color="yellow" icon={<IconCurrencyDollar size={16} />}>
+                    <Text size="sm">This is a paid exam. Price: <Text span fw={600}>₹{selectedExam.price}</Text></Text>
+                    <Text size="xs" c="dimmed">Payment required after registration to access the exam.</Text>
+                  </Alert>
                 )}
                 
-                <div className="modal-actions">
-                  <Space>
-                    <Button onClick={() => setShowRegistrationModal(false)}>
-                      Cancel
-                    </Button>
-                    <Button
-                      type="primary"
-                      onClick={handleRegisterConfirm}
-                      loading={registrationLoading[selectedExam._id]}
-                    >
-                      Register Now
-                    </Button>
-                  </Space>
-                </div>
-              </div>
+                <Group justify="flex-end">
+                  <Button variant="default" onClick={() => setShowRegistrationModal(false)}>Cancel</Button>
+                  <Button onClick={handleRegisterConfirm} loading={registrationLoading[selectedExam._id]}>
+                    Register Now
+                  </Button>
+                </Group>
+              </Stack>
             )}
-          </div>
+          </Stack>
         )}
       </Modal>
 
       {/* Success Modal */}
       <Modal
-        open={showSuccessModal}
-        footer={null}
-        onCancel={() => setShowSuccessModal(false)}
-        width={500}
+        opened={showSuccessModal}
+        onClose={() => setShowSuccessModal(false)}
+        size="sm"
         centered
+        withCloseButton={false}
       >
-        <Result
-          status="success"
-          title="Registration Successful!"
-          subTitle={
-            <div>
-              <p>You have successfully registered for the exam.</p>
-              <p>An email with your exam token has been sent to:</p>
-              <p><strong>{user?.email}</strong></p>
-            </div>
-          }
-          extra={[
-            <Button 
-              type="primary" 
-              key="console" 
-              onClick={() => {
-                setShowSuccessModal(false);
-                if (selectedExam) {
-                  navigate(`/user/write-exam/${selectedExam._id}`);
-                }
-              }}
-            >
+        <Stack align="center" py="md">
+          <ThemeIcon size={64} color="green" radius="xl">
+            <IconCircleCheck size={32} />
+          </ThemeIcon>
+          <Title order={3}>Registration Successful!</Title>
+          <Text c="dimmed" ta="center" size="sm">
+            An email with your exam token has been sent to:
+          </Text>
+          <Text fw={500}>{user?.email}</Text>
+          <Group mt="md">
+            <Button onClick={() => {
+              setShowSuccessModal(false);
+              if (selectedExam) navigate(`/user/write-exam/${selectedExam._id}`);
+            }}>
               Go to Exam
-            </Button>,
-            <Button 
-              key="mail" 
-              onClick={() => setShowSuccessModal(false)}
-            >
-              Check Email Later
-            </Button>,
-          ]}
-        />
+            </Button>
+            <Button variant="default" onClick={() => setShowSuccessModal(false)}>
+              Close
+            </Button>
+          </Group>
+        </Stack>
       </Modal>
-      
-      <style jsx="true">{`
-        .available-exams-container {
-          background: #fff;
-          border-radius: var(--border-radius);
-          padding: 20px;
-        }
-        
-        .header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          flex-wrap: wrap;
-          gap: 16px;
-          margin-bottom: 20px;
-        }
-        
-        .filters {
-          display: flex;
-          gap: 16px;
-          flex-wrap: wrap;
-          align-items: center;
-        }
-        
-        .search-input {
-          width: 250px;
-        }
-        
-        .exams-table {
-          margin-top: 20px;
-        }
-        
-        .exams-card-container {
-          display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
-          gap: 1.5rem;
-          margin-top: 20px;
-        }
-        
-        .exam-name-cell {
-          display: flex;
-          flex-direction: column;
-        }
-        
-        .exam-title {
-          font-weight: 500;
-          font-size: 16px;
-          color: var(--text-primary);
-          display: flex;
-          align-items: center;
-        }
-        
-        .exam-category {
-          font-size: 12px;
-          color: var(--text-secondary);
-          margin-top: 4px;
-        }
-        
-        .duration-cell {
-          color: var(--text-secondary);
-          font-weight: 500;
-        }
-        
-        .start-exam-btn {
-          background: var(--primary);
-          border-color: var(--primary);
-        }
-        
-        .start-exam-btn:hover {
-          background: var(--primary-dark);
-          border-color: var(--primary-dark);
-        }
-        
-        .register-btn {
-          background: var(--success);
-          border-color: var(--success);
-        }
-        
-        .register-btn:hover {
-          background: var(--success-dark);
-          border-color: var(--success-dark);
-        }
-        
-        .payment-btn {
-          background: #ff4d4f;
-          border-color: #ff4d4f;
-        }
-        
-        .payment-btn:hover {
-          background: #ff7875;
-          border-color: #ff7875;
-        }
-        
-        .no-exams-found {
-          margin: 40px 0;
-        }
-        
-        .registration-modal-content {
-          display: flex;
-          flex-direction: column;
-          gap: 16px;
-        }
-        
-        .registration-status {
-          margin-bottom: 16px;
-        }
-        
-        .payment-status,
-        .exam-access,
-        .exam-payment-info {
-          background-color: #f9f9f9;
-          padding: 16px;
-          border-radius: 4px;
-          margin-bottom: 16px;
-        }
-        
-        .exam-details-card {
-          background-color: #f9f9f9;
-          padding: 16px;
-          border-radius: 4px;
-          margin-bottom: 16px;
-        }
-        
-        .detail-item {
-          display: flex;
-          justify-content: space-between;
-          margin-bottom: 8px;
-        }
-        
-        .label {
-          font-weight: 500;
-          color: var(--text-secondary);
-        }
-        
-        .value {
-          font-weight: 500;
-          color: var(--text-primary);
-        }
-        
-        .token-info {
-          display: flex;
-          gap: 16px;
-          background-color: #e6f7ff;
-          border-left: 4px solid #1890ff;
-          padding: 16px;
-          border-radius: 4px;
-          margin-bottom: 16px;
-        }
-        
-        .token-icon {
-          font-size: 28px;
-          color: #1890ff;
-        }
-        
-        .token-text h4 {
-          margin-top: 0;
-          margin-bottom: 8px;
-          color: #1890ff;
-        }
-        
-        .token-text p {
-          margin-bottom: 4px;
-        }
-        
-        .exam-payment-info {
-          background-color: #fff9e6;
-          border-left: 4px solid #ffcc00;
-        }
-        
-        .exam-payment-info h4 {
-          margin-top: 0;
-          margin-bottom: 8px;
-          color: #d48806;
-        }
-        
-        .modal-actions {
-          display: flex;
-          justify-content: flex-end;
-          margin-top: 16px;
-        }
-        
-        @media (max-width: 768px) {
-          .header {
-            flex-direction: column;
-            align-items: stretch;
-          }
-          
-          .filters {
-            flex-direction: column;
-            align-items: stretch;
-          }
-          
-          .search-input {
-            width: 100%;
-          }
-          
-          .category-select {
-            width: 100% !important;
-          }
-          
-          .exams-card-container {
-            grid-template-columns: 1fr;
-          }
-        }
-      `}</style>
-    </div>
+    </Container>
   );
 }
 

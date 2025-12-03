@@ -1,13 +1,37 @@
 import React, { useState } from "react";
-import { message, Checkbox } from "antd";
 import { 
-  ClockCircleOutlined, 
-  FileTextOutlined, 
-  ExclamationCircleOutlined, 
-  RightCircleOutlined,
-  CheckCircleOutlined,
-  QuestionCircleOutlined
-} from "@ant-design/icons";
+  Paper,
+  Title,
+  Text,
+  Checkbox,
+  Divider,
+  Button,
+  Alert,
+  Badge,
+  Group,
+  Stack,
+  Box,
+  Stepper,
+  Accordion,
+  Tooltip,
+  Grid
+} from "@mantine/core";
+import { 
+  IconClock,
+  IconFileText,
+  IconAlertTriangle,
+  IconArrowRight,
+  IconCircleCheck,
+  IconQuestionMark,
+  IconBook,
+  IconShieldCheck,
+  IconChevronLeft,
+  IconBolt,
+  IconAlertCircle,
+  IconInfoCircle,
+  IconSettings
+} from "@tabler/icons-react";
+import { message } from "../../../utils/notifications";
 
 function Instructions({ examData, setView, startTimer }) {
   const [agreed, setAgreed] = useState(false);
@@ -21,322 +45,223 @@ function Instructions({ examData, setView, startTimer }) {
     }
   };
 
+  const StatItem = ({ icon, title, value, color }) => (
+    <Box>
+      <Group gap="xs" mb={4}>
+        {icon}
+        <Text size="sm" c="dimmed">{title}</Text>
+      </Group>
+      <Text fw={600} size="xl" c={color}>{value}</Text>
+    </Box>
+  );
+
+  const TimelineItem = ({ children, color = "gray", icon = null }) => (
+    <Group gap="md" align="flex-start" mb="sm">
+      <Box className={`timeline-dot timeline-${color}`}>
+        {icon || <Box className="timeline-inner-dot" />}
+      </Box>
+      <Text size="sm" className="timeline-content">{children}</Text>
+    </Group>
+  );
+
   return (
-    <div className="instructions-container">
-      <div className="instructions-card">
+    <Box className="instructions-container">
+      <Paper shadow="lg" radius="lg" className="instructions-card">
         <div className="instructions-header">
-          <h1>Exam Instructions</h1>
-          <h2>{examData.name}</h2>
+          <Title order={2} c="white" fw={600} mb="xs">
+            Exam Instructions
+          </Title>
+          <Text c="white" opacity={0.85} size="lg" mt="xs">
+            {examData.name}
+          </Text>
         </div>
+
+        <Box p="xl" pb="md">
+          <Stepper 
+            active={agreed ? 1 : 0} 
+            className="instructions-stepper"
+            mb="xl"
+          >
+            <Stepper.Step 
+              label="Read Instructions" 
+              icon={<IconFileText size={18} />}
+              completedIcon={<IconCircleCheck size={18} />}
+            />
+            <Stepper.Step 
+              label="Accept Rules" 
+              icon={agreed ? <IconCircleCheck size={18} /> : <IconSettings size={18} />}
+              completedIcon={<IconCircleCheck size={18} />}
+            />
+            <Stepper.Step 
+              label="Begin Exam" 
+              icon={<IconBolt size={18} />}
+            />
+          </Stepper>
+        </Box>
         
-        <div className="instructions-content">
-          <div className="instructions-section">
-            <h3>
-              <FileTextOutlined /> Exam Details
-            </h3>
-            <div className="exam-details">
-              <div className="detail-item">
-                <label>Duration:</label>
-                <span>{Math.floor(examData.duration / 60)} minutes</span>
-              </div>
-              <div className="detail-item">
-                <label>Total Questions:</label>
-                <span>{examData.totalMarks}</span>
-              </div>
-              <div className="detail-item">
-                <label>Passing Marks:</label>
-                <span>{examData.passingMarks}</span>
-              </div>
-              <div className="detail-item">
-                <label>Category:</label>
-                <span>{examData.category}</span>
-              </div>
-            </div>
-          </div>
+        <Box px="xl" pb="xl" className="instructions-content">
+          <Stack gap="lg">
+            <Paper withBorder p="lg" radius="md" className="exam-details-card">
+              <Group gap="xs" mb="md">
+                <IconFileText size={18} />
+                <Text fw={600}>Exam Details</Text>
+              </Group>
+              <Grid>
+                <Grid.Col span={{ base: 12, sm: 6, md: 3 }}>
+                  <StatItem 
+                    icon={<IconClock size={16} color="var(--mantine-color-blue-6)" />}
+                    title="Duration"
+                    value={`${Math.floor(examData.duration / 60)} minutes`}
+                    color="blue"
+                  />
+                </Grid.Col>
+                <Grid.Col span={{ base: 12, sm: 6, md: 3 }}>
+                  <StatItem 
+                    icon={<IconQuestionMark size={16} color="var(--mantine-color-cyan-6)" />}
+                    title="Total Questions"
+                    value={examData.totalMarks}
+                    color="cyan"
+                  />
+                </Grid.Col>
+                <Grid.Col span={{ base: 12, sm: 6, md: 3 }}>
+                  <StatItem 
+                    icon={<IconCircleCheck size={16} color="var(--mantine-color-green-6)" />}
+                    title="Passing Marks"
+                    value={examData.passingMarks}
+                    color="green"
+                  />
+                </Grid.Col>
+                <Grid.Col span={{ base: 12, sm: 6, md: 3 }}>
+                  <StatItem 
+                    icon={<IconBook size={16} color="var(--mantine-color-yellow-6)" />}
+                    title="Category"
+                    value={examData.category}
+                    color="yellow.7"
+                  />
+                </Grid.Col>
+              </Grid>
+            </Paper>
 
-          <div className="instructions-section">
-            <h3>
-              <ExclamationCircleOutlined /> Important Instructions
-            </h3>
-            <ul className="instruction-list">
-              <li>This exam consists of multiple-choice questions (MCQs).</li>
-              <li>All questions carry equal marks.</li>
-              <li>There is no negative marking in this examination.</li>
-              <li><strong>Timer:</strong> A countdown timer in the top-right corner will display the remaining time.</li>
-              <li><strong>Do not refresh</strong> the page during the examination as it may result in termination of your exam.</li>
-              <li>You can review and change your answers before final submission.</li>
-              <li>The exam will be automatically submitted when the timer expires.</li>
-            </ul>
-          </div>
-
-          <div className="instructions-section">
-            <h3>
-              <QuestionCircleOutlined /> Question Navigation
-            </h3>
-            <ul className="instruction-list">
-              <li><strong>Save & Next:</strong> Saves your answer and moves to the next question.</li>
-              <li><strong>Mark for Review:</strong> Allows you to flag questions to review later.</li>
-              <li><strong>Question Panel:</strong> Use the numbered buttons on the left to navigate between questions.</li>
-              <li>Different colors indicate the status of questions (Answered, Not Answered, Marked for Review).</li>
-              <li>You can change your answers at any time before submitting the exam.</li>
-            </ul>
-          </div>
-
-          <div className="instructions-section">
-            <h3>
-              <RightCircleOutlined /> Submission Guidelines
-            </h3>
-            <ul className="instruction-list">
-              <li>Click on the "Submit" button to end the exam once you've answered all questions.</li>
-              <li>After submission, your answers will be evaluated and results displayed immediately.</li>
-              <li>You can review your answers and see explanations after submission.</li>
-            </ul>
-          </div>
-
-          <div className="agreement-section">
-            <Checkbox 
-              checked={agreed} 
-              onChange={(e) => setAgreed(e.target.checked)}
-              className="agreement-checkbox"
+            <Accordion
+              defaultValue={['important', 'navigation']}
+              multiple
+              radius="md"
+              variant="separated"
+              className="instructions-accordion"
             >
-              <strong>Declaration:</strong> I have read and understood the instructions. I agree not to use any unfair means during the exam and understand that violation of any instructions may result in cancellation of my results.
-            </Checkbox>
-          </div>
-        </div>
+              <Accordion.Item value="important">
+                <Accordion.Control icon={<IconAlertCircle size={18} />}>
+                  <Text fw={500}>Important Instructions</Text>
+                </Accordion.Control>
+                <Accordion.Panel>
+                  <Stack gap="xs">
+                    <TimelineItem>This exam consists of multiple-choice questions (MCQs).</TimelineItem>
+                    <TimelineItem>All questions carry equal marks.</TimelineItem>
+                    <TimelineItem>There is no negative marking in this examination.</TimelineItem>
+                    <TimelineItem color="blue" icon={<IconInfoCircle size={14} />}>
+                      <strong>Timer:</strong> A countdown timer in the top-right corner will display the remaining time.
+                    </TimelineItem>
+                    <TimelineItem color="red" icon={<IconAlertTriangle size={14} />}>
+                      <strong>Do not refresh</strong> the page during the examination as it may result in termination of your exam.
+                    </TimelineItem>
+                    <TimelineItem>You can review and change your answers before final submission.</TimelineItem>
+                    <TimelineItem>The exam will be automatically submitted when the timer expires.</TimelineItem>
+                  </Stack>
+                </Accordion.Panel>
+              </Accordion.Item>
 
-        <div className="instructions-footer">
-          <div className="timer-reminder">
-            <ClockCircleOutlined /> Exam Duration: <strong>{Math.floor(examData.duration / 60)} minutes</strong>
-          </div>
-          <div className="instruction-actions">
-            <button className="back-button" onClick={() => setView("auth")}>
+              <Accordion.Item value="navigation">
+                <Accordion.Control icon={<IconQuestionMark size={18} />}>
+                  <Text fw={500}>Question Navigation</Text>
+                </Accordion.Control>
+                <Accordion.Panel>
+                  <Stack gap="xs">
+                    <TimelineItem color="green" icon={<IconCircleCheck size={14} />}>
+                      <strong>Save & Next:</strong> Saves your answer and moves to the next question.
+                    </TimelineItem>
+                    <TimelineItem color="orange" icon={<IconAlertCircle size={14} />}>
+                      <strong>Mark for Review:</strong> Allows you to flag questions to review later.
+                    </TimelineItem>
+                    <TimelineItem>
+                      <Stack gap="xs">
+                        <span><strong>Question Panel:</strong> Use the numbered buttons on the left to navigate between questions.</span>
+                        <Group gap="xs" wrap="wrap">
+                          <Badge color="gray" variant="light">Not Visited</Badge>
+                          <Badge color="blue" variant="light">Current</Badge>
+                          <Badge color="green" variant="light">Answered</Badge>
+                          <Badge color="yellow" variant="light">Marked for Review</Badge>
+                          <Badge color="red" variant="light">Not Answered</Badge>
+                        </Group>
+                      </Stack>
+                    </TimelineItem>
+                    <TimelineItem>Different colors indicate the status of questions (Answered, Not Answered, Marked for Review).</TimelineItem>
+                    <TimelineItem>You can change your answers at any time before submitting the exam.</TimelineItem>
+                  </Stack>
+                </Accordion.Panel>
+              </Accordion.Item>
+
+              <Accordion.Item value="submission">
+                <Accordion.Control icon={<IconArrowRight size={18} />}>
+                  <Text fw={500}>Submission Guidelines</Text>
+                </Accordion.Control>
+                <Accordion.Panel>
+                  <Stack gap="xs">
+                    <TimelineItem>Click on the "Submit" button to end the exam once you've answered all questions.</TimelineItem>
+                    <TimelineItem>After submission, your answers will be evaluated and results displayed immediately.</TimelineItem>
+                    <TimelineItem>You can review your answers and see explanations after submission.</TimelineItem>
+                  </Stack>
+                </Accordion.Panel>
+              </Accordion.Item>
+            </Accordion>
+
+            <Alert
+              color="yellow"
+              icon={<IconShieldCheck size={18} />}
+              radius="md"
+            >
+              <Checkbox 
+                checked={agreed} 
+                onChange={(e) => setAgreed(e.currentTarget.checked)}
+                label={
+                  <Text size="sm">
+                    <strong>Declaration:</strong> I have read and understood the instructions. I agree not to use any unfair means during the exam and understand that violation of any instructions may result in cancellation of my results.
+                  </Text>
+                }
+              />
+            </Alert>
+          </Stack>
+        </Box>
+        
+        <Box px="xl" py="md" className="instructions-footer">
+          <Tooltip label="Timer starts when you click Begin Exam">
+            <Group gap="xs">
+              <IconClock size={18} color="var(--mantine-color-blue-6)" />
+              <Text size="sm">
+                Exam Duration: <Text span fw={600} c="blue">{Math.floor(examData.duration / 60)} minutes</Text>
+              </Text>
+            </Group>
+          </Tooltip>
+          
+          <Group gap="sm">
+            <Button 
+              variant="default"
+              leftSection={<IconChevronLeft size={16} />}
+              onClick={() => setView("auth")}
+            >
               Back
-            </button>
-            <button 
-              className={`start-button ${agreed ? '' : 'disabled'}`} 
+            </Button>
+            <Button 
+              leftSection={<IconBolt size={16} />}
               onClick={handleStartExam}
               disabled={!agreed}
+              size="md"
             >
-              <CheckCircleOutlined /> I am Ready to Begin
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <style jsx="true">{`
-        .instructions-container {
-          padding: 24px;
-          display: flex;
-          justify-content: center;
-        }
-        
-        .instructions-card {
-          background: white;
-          border-radius: 12px;
-          box-shadow: var(--box-shadow);
-          overflow: hidden;
-          width: 100%;
-          max-width: 900px;
-        }
-        
-        .instructions-header {
-          padding: 24px;
-          background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
-          color: white;
-          text-align: center;
-        }
-        
-        .instructions-header h1 {
-          margin: 0 0 8px 0;
-          font-size: 1.8rem;
-        }
-        
-        .instructions-header h2 {
-          margin: 0;
-          font-size: 1.3rem;
-          opacity: 0.9;
-        }
-        
-        .instructions-content {
-          padding: 32px;
-          max-height: 60vh;
-          overflow-y: auto;
-          scrollbar-width: thin;
-          scrollbar-color: var(--primary) #f0f0f0;
-        }
-        
-        .instructions-content::-webkit-scrollbar {
-          width: 8px;
-        }
-        
-        .instructions-content::-webkit-scrollbar-track {
-          background: #f0f0f0;
-          border-radius: 10px;
-        }
-        
-        .instructions-content::-webkit-scrollbar-thumb {
-          background-color: var(--primary);
-          border-radius: 10px;
-        }
-        
-        .instructions-section {
-          margin-bottom: 32px;
-        }
-        
-        .instructions-section h3 {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          font-size: 1.2rem;
-          color: var(--primary);
-          margin-bottom: 16px;
-          padding-bottom: 8px;
-          border-bottom: 1px solid var(--border-color);
-        }
-        
-        .exam-details {
-          display: grid;
-          grid-template-columns: repeat(2, 1fr);
-          gap: 16px;
-        }
-        
-        .detail-item {
-          display: flex;
-          flex-direction: column;
-          background-color: var(--primary-light);
-          padding: 12px 16px;
-          border-radius: 8px;
-        }
-        
-        .detail-item label {
-          font-size: 0.9rem;
-          color: var(--text-secondary);
-          margin-bottom: 4px;
-        }
-        
-        .detail-item span {
-          font-weight: 600;
-          color: var(--text-primary);
-          font-size: 1.1rem;
-        }
-        
-        .instruction-list {
-          padding-left: 20px;
-          margin: 0;
-        }
-        
-        .instruction-list li {
-          margin-bottom: 10px;
-          line-height: 1.6;
-          color: var(--text-primary);
-        }
-        
-        .agreement-section {
-          margin-top: 32px;
-          padding: 16px;
-          background-color: #fff3cd;
-          border-left: 4px solid #ffeeba;
-          border-radius: 4px;
-        }
-        
-        .agreement-checkbox {
-          font-size: 0.95rem;
-          line-height: 1.6;
-          color: #856404;
-        }
-        
-        .instructions-footer {
-          padding: 20px 32px;
-          border-top: 1px solid var(--border-color);
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          background-color: #f8f9fa;
-        }
-        
-        .timer-reminder {
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          color: var(--text-secondary);
-        }
-        
-        .timer-reminder strong {
-          color: var(--primary);
-        }
-        
-        .instruction-actions {
-          display: flex;
-          gap: 16px;
-        }
-        
-        .back-button {
-          padding: 10px 20px;
-          background-color: white;
-          border: 1px solid var(--border-color);
-          border-radius: 4px;
-          cursor: pointer;
-          font-weight: 500;
-          transition: all 0.2s;
-        }
-        
-        .back-button:hover {
-          background-color: #f0f0f0;
-        }
-        
-        .start-button {
-          padding: 10px 20px;
-          background-color: var(--success);
-          color: white;
-          border: none;
-          border-radius: 4px;
-          cursor: pointer;
-          font-weight: 500;
-          transition: all 0.2s;
-          display: flex;
-          align-items: center;
-          gap: 8px;
-        }
-        
-        .start-button:hover {
-          background-color: #27ae60;
-          transform: translateY(-2px);
-          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-        }
-        
-        .start-button.disabled {
-          background-color: #a0a0a0;
-          cursor: not-allowed;
-          transform: none;
-          box-shadow: none;
-        }
-        
-        @media (max-width: 768px) {
-          .instructions-container {
-            padding: 16px;
-          }
-          
-          .exam-details {
-            grid-template-columns: 1fr;
-          }
-          
-          .instructions-footer {
-            flex-direction: column;
-            gap: 16px;
-          }
-          
-          .instruction-actions {
-            width: 100%;
-          }
-          
-          .back-button, 
-          .start-button {
-            flex: 1;
-            justify-content: center;
-          }
-        }
-      `}</style>
-    </div>
+              Begin Exam
+            </Button>
+          </Group>
+        </Box>
+      </Paper>
+    </Box>
   );
 }
 

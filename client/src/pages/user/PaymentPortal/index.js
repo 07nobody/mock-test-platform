@@ -1,691 +1,655 @@
-import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { useDispatch, useSelector } from 'react-redux';
-import { Form, Input, Button, message, Steps, Radio, Result, Card, Divider, Tooltip, Alert } from 'antd';
+import React, { useState, useEffect } from "react";
+import { useParams, useNavigate } from "react-router-dom";
+import { useDispatch, useSelector } from "react-redux";
 import {
-  CreditCardOutlined,
-  BankOutlined,
-  CheckCircleOutlined,
-  LockOutlined,
-  SafetyOutlined,
-  DollarOutlined,
-  ArrowLeftOutlined,
-  BookOutlined
-} from '@ant-design/icons';
-import { HideLoading, ShowLoading } from '../../../redux/loaderSlice';
-import { getExamById } from '../../../apicalls/exams';
-import { createPayment, completePayment } from '../../../apicalls/payments';
-import LottiePlayer from '../../../components/LottiePlayer';
-
-const { Step } = Steps;
+  TextInput,
+  Button,
+  Card,
+  Paper,
+  Radio,
+  Stepper,
+  Divider,
+  Alert,
+  Grid,
+  Title,
+  Text,
+  Loader,
+  Badge,
+  Stack,
+  Group,
+  Box,
+} from "@mantine/core";
+import { useForm } from "@mantine/form";
+import {
+  IconCreditCard,
+  IconBuildingBank,
+  IconWallet,
+  IconShieldCheck,
+  IconCircleCheck,
+  IconArrowLeft,
+  IconLock,
+  IconUser,
+  IconCalendar,
+  IconCurrencyDollar,
+  IconFlask,
+  IconGift,
+  IconCircleX,
+} from "@tabler/icons-react";
+import { createPayment, completePayment, checkPaymentStatus } from "../../../apicalls/payments";
+import { getExamById } from "../../../apicalls/exams";
+import { HideLoading, ShowLoading } from "../../../redux/loaderSlice";
+import { message } from "../../../utils/notifications";
+import PageTitle from "../../../components/PageTitle";
 
 function PaymentPortal() {
   const { examId } = useParams();
   const navigate = useNavigate();
   const dispatch = useDispatch();
   const { user } = useSelector((state) => state.users);
-  const [examData, setExamData] = useState(null);
+
+  const [exam, setExam] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [paymentMethod, setPaymentMethod] = useState("credit_card");
   const [currentStep, setCurrentStep] = useState(0);
-  const [paymentMethod, setPaymentMethod] = useState('credit_card');
-  const [paymentDetails, setPaymentDetails] = useState({});
-  const [loading, setLoading] = useState(false);
-  const [paymentIntent, setPaymentIntent] = useState(null);
-  const [paymentSuccess, setPaymentSuccess] = useState(false);
-  const [receipt, setReceipt] = useState(null);
+  const [paymentStatus, setPaymentStatus] = useState("");
+  const [transactionId, setTransactionId] = useState("");
 
+  // Card form
+  const cardForm = useForm({
+    initialValues: {
+      cardNumber: "",
+      expiryDate: "",
+      cvv: "",
+      cardHolderName: "",
+    },
+    validate: {
+      cardNumber: (value) =>
+        !value
+          ? "Please enter your card number"
+          : !/^\d{16}$/.test(value)
+          ? "Card number must be 16 digits"
+          : null,
+      expiryDate: (value) =>
+        !value
+          ? "Please enter expiry date"
+          : !/^(0[1-9]|1[0-2])\/\d{2}$/.test(value)
+          ? "Format: MM/YY"
+          : null,
+      cvv: (value) =>
+        !value
+          ? "Please enter CVV"
+          : !/^\d{3,4}$/.test(value)
+          ? "CVV must be 3 or 4 digits"
+          : null,
+      cardHolderName: (value) =>
+        !value ? "Please enter card holder name" : null,
+    },
+  });
+
+  // Net banking form
+  const bankForm = useForm({
+    initialValues: { bank: "" },
+    validate: {
+      bank: (value) => (!value ? "Please select your bank" : null),
+    },
+  });
+
+  // UPI form
+  const upiForm = useForm({
+    initialValues: { upiId: "" },
+    validate: {
+      upiId: (value) =>
+        !value
+          ? "Please enter your UPI ID"
+          : !/^[a-zA-Z0-9._-]+@[a-zA-Z0-9]+$/.test(value)
+          ? "Please enter valid UPI ID (example: name@upi)"
+          : null,
+    },
+  });
+
+  // Wallet form
+  const walletForm = useForm({
+    initialValues: { wallet: "" },
+    validate: {
+      wallet: (value) => (!value ? "Please select your wallet" : null),
+    },
+  });
+
+  // Get exam details
   useEffect(() => {
-    getExamDetails();
-  }, []);
+    const getExamData = async () => {
+      try {
+        dispatch(ShowLoading());
+        const response = await getExamById({ examId });
+        dispatch(HideLoading());
 
-  const getExamDetails = async () => {
+        if (response.success) {
+          if (!response.data.isPaid) {
+            message.error("This exam does not require payment");
+            navigate("/user/available-exams");
+            return;
+          }
+          setExam(response.data);
+          console.log("Exam data:", response.data);
+        } else {
+          message.error(response.message);
+          navigate("/user/available-exams");
+        }
+
+        setLoading(false);
+      } catch (error) {
+        dispatch(HideLoading());
+        message.error(error.message);
+        navigate("/user/available-exams");
+      }
+    };
+
+    getExamData();
+
+    // Also check if payment has already been completed
+    const checkExistingPayment = async () => {
+      try {
+        const response = await checkPaymentStatus({
+          userId: user._id,
+          examId: examId,
+        });
+
+        if (
+          response.success &&
+          response.data &&
+          response.data.status === "completed"
+        ) {
+          message.success("You have already completed payment for this exam");
+          navigate(`/user/write-exam/${examId}`);
+        }
+      } catch (error) {
+        console.error("Error checking payment status:", error);
+      }
+    };
+
+    checkExistingPayment();
+  }, [examId, navigate, dispatch, user._id]);
+
+  const handlePaymentMethodChange = (value) => {
+    setPaymentMethod(value);
+  };
+
+  const generateTransactionId = () => {
+    return "TXN" + Date.now() + Math.floor(Math.random() * 1000);
+  };
+
+  // Modify handlePaymentSubmit to store payment response data for later use
+  const handlePaymentSubmit = async (values) => {
+    const newTransactionId = generateTransactionId();
+    setTransactionId(newTransactionId);
+
     try {
       dispatch(ShowLoading());
-      const response = await getExamById({ examId });
-      dispatch(HideLoading());
-      
-      if (response.success) {
-        setExamData(response.data);
-        // Check if the exam is not a paid exam
-        if (!response.data.isPaid) {
-          message.error("This exam doesn't require payment");
-          navigate(`/user/available-exams`);
-        }
-      } else {
-        message.error(response.message);
-        navigate(`/user/available-exams`);
-      }
-    } catch (error) {
-      dispatch(HideLoading());
-      message.error(error.message);
-      navigate(`/user/available-exams`);
-    }
-  };
-
-  const initiatePayment = async () => {
-    try {
-      setLoading(true);
-      const response = await createPayment({
-        examId,
+      const paymentData = {
+        examId: examId,
         userId: user._id,
-        paymentMethod
-      });
-      
+        amount: exam.price || 0,
+        paymentMethod: paymentMethod,
+        transactionId: newTransactionId,
+        paymentDetails: values,
+      };
+
+      const response = await createPayment(paymentData);
+
       if (response.success) {
-        setPaymentIntent(response.data);
-        setCurrentStep(1);
+        sessionStorage.setItem("currentPaymentId", response.data.paymentId);
         message.success("Payment initiated successfully");
+        setCurrentStep(1);
+        simulatePaymentProcessing();
       } else {
         message.error(response.message);
       }
-      setLoading(false);
+
+      dispatch(HideLoading());
     } catch (error) {
-      setLoading(false);
-      message.error(error.message);
+      dispatch(HideLoading());
+      message.error(error.message || "Failed to process payment. Please try again.");
     }
   };
 
-  const processPayment = async (values) => {
+  const simulatePaymentProcessing = () => {
+    setPaymentStatus("processing");
+    setTimeout(() => {
+      completePaymentProcess();
+    }, 3000);
+  };
+
+  const completePaymentProcess = async () => {
     try {
-      setLoading(true);
-      // Simulating a payment processing delay
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
+      dispatch(ShowLoading());
+
+      const paymentId = sessionStorage.getItem("currentPaymentId");
+
       const response = await completePayment({
-        paymentId: paymentIntent.paymentId,
-        transactionId: paymentIntent.transactionId,
-        ...values
+        examId: examId,
+        userId: user._id,
+        transactionId: transactionId,
+        status: "completed",
+        paymentId: paymentId,
       });
-      
+
       if (response.success) {
-        setReceipt(response.data);
-        setPaymentSuccess(true);
+        sessionStorage.removeItem("currentPaymentId");
+        setPaymentStatus("completed");
         setCurrentStep(2);
-        message.success("Payment completed successfully");
+        message.success("Payment completed successfully!");
       } else {
+        setPaymentStatus("failed");
         message.error(response.message);
       }
-      setLoading(false);
+
+      dispatch(HideLoading());
     } catch (error) {
-      setLoading(false);
-      message.error(error.message);
+      dispatch(HideLoading());
+      setPaymentStatus("failed");
+      message.error("Payment processing failed. Please try again.");
     }
   };
 
-  const renderPaymentMethodStep = () => {
-    return (
-      <div className="payment-step-container">
-        <Card className="payment-card">
-          <div className="exam-summary">
-            <div className="exam-icon">
-              <BookOutlined />
-            </div>
-            <div className="exam-details">
-              <h2>{examData?.name}</h2>
-              <p className="category">{examData?.category}</p>
-              <div className="price-tag">
-                <DollarOutlined /> ₹{examData?.price}
-              </div>
-            </div>
-          </div>
-          
-          <Divider />
-          
-          <h3>Select Payment Method</h3>
-          <div className="payment-methods">
-            <Radio.Group 
-              onChange={(e) => setPaymentMethod(e.target.value)} 
-              value={paymentMethod}
-              className="payment-radio-group"
-            >
-              <Radio.Button value="credit_card" className="payment-option">
-                <div className="payment-option-content">
-                  <CreditCardOutlined className="payment-icon" />
-                  <div>
-                    <div className="payment-option-title">Credit Card</div>
-                    <div className="payment-option-desc">Pay securely with your credit card</div>
-                  </div>
-                </div>
-              </Radio.Button>
-              <Radio.Button value="debit_card" className="payment-option">
-                <div className="payment-option-content">
-                  <CreditCardOutlined className="payment-icon" />
-                  <div>
-                    <div className="payment-option-title">Debit Card</div>
-                    <div className="payment-option-desc">Use your bank debit card</div>
-                  </div>
-                </div>
-              </Radio.Button>
-              <Radio.Button value="netbanking" className="payment-option">
-                <div className="payment-option-content">
-                  <BankOutlined className="payment-icon" />
-                  <div>
-                    <div className="payment-option-title">Net Banking</div>
-                    <div className="payment-option-desc">Pay directly from your bank</div>
-                  </div>
-                </div>
-              </Radio.Button>
-              <Radio.Button value="upi" className="payment-option">
-                <div className="payment-option-content">
-                  <SafetyOutlined className="payment-icon" />
-                  <div>
-                    <div className="payment-option-title">UPI</div>
-                    <div className="payment-option-desc">Pay using UPI apps</div>
-                  </div>
-                </div>
-              </Radio.Button>
-            </Radio.Group>
-          </div>
-          
-          <div className="payment-actions">
-            <Button onClick={() => navigate('/user/available-exams')} icon={<ArrowLeftOutlined />}>
-              Cancel
+  const renderPaymentForm = () => {
+    if (paymentMethod === "free_test") {
+      return (
+        <div className="free-payment">
+          <Alert
+            title="Test Payment (100% OFF)"
+            color="blue"
+            icon={<IconGift size={16} />}
+            mb="lg"
+          >
+            This is a test option that allows you to bypass the payment process.
+            It will generate an invoice and send email notifications for testing
+            purposes.
+          </Alert>
+          <form onSubmit={(e) => { e.preventDefault(); handlePaymentSubmit({}); }}>
+            <Button type="submit" fullWidth leftSection={<IconGift size={16} />}>
+              Complete Free Test Payment
             </Button>
-            <Button 
-              type="primary" 
-              onClick={initiatePayment} 
-              loading={loading} 
-              icon={<LockOutlined />}
-            >
-              Proceed to Pay ₹{examData?.price}
-            </Button>
-          </div>
-          
-          <div className="payment-security-info">
-            <LockOutlined /> Your payment information is secure and encrypted
-          </div>
-        </Card>
-      </div>
-    );
-  };
-
-  const renderPaymentDetailsStep = () => {
-    return (
-      <div className="payment-step-container">
-        <Card className="payment-card">
-          <div className="transaction-info">
-            <div className="transaction-header">
-              <h3>Complete Your Payment</h3>
-              <div className="transaction-amount">₹{examData?.price}</div>
-            </div>
-            
-            <Alert
-              message="Demo Payment"
-              description="This is a simulated payment for demonstration. No actual payment will be processed."
-              type="info"
-              showIcon
-              style={{ marginBottom: '20px' }}
+          </form>
+        </div>
+      );
+    } else if (paymentMethod === "credit_card" || paymentMethod === "debit_card") {
+      return (
+        <form onSubmit={cardForm.onSubmit(handlePaymentSubmit)}>
+          <Stack gap="md">
+            <TextInput
+              label="Card Number"
+              placeholder="1234 5678 9012 3456"
+              leftSection={<IconCreditCard size={16} />}
+              maxLength={16}
+              autoComplete="off"
+              {...cardForm.getInputProps("cardNumber")}
             />
 
-            <Form layout="vertical" onFinish={processPayment}>
-              {paymentMethod === 'credit_card' || paymentMethod === 'debit_card' ? (
-                <>
-                  <div className="form-row">
-                    <Form.Item
-                      name="cardNumber"
-                      label="Card Number"
-                      rules={[{ required: true, message: 'Please enter your card number' }]}
-                      className="form-item-wide"
-                    >
-                      <Input 
-                        placeholder="1234 5678 9012 3456" 
-                        prefix={<CreditCardOutlined />} 
-                        maxLength={19}
-                        onChange={(e) => {
-                          // Format card number with spaces
-                          const value = e.target.value.replace(/\s/g, '');
-                          if (value.length <= 16) {
-                            const formatted = value.replace(/(.{4})/g, '$1 ').trim();
-                            e.target.value = formatted;
-                          }
-                        }}
-                      />
-                    </Form.Item>
-                  </div>
-                  
-                  <div className="form-row">
-                    <Form.Item
-                      name="cardName"
-                      label="Cardholder Name"
-                      rules={[{ required: true, message: 'Please enter the cardholder name' }]}
-                      className="form-item-wide"
-                    >
-                      <Input placeholder="John Doe" />
-                    </Form.Item>
-                  </div>
-                  
-                  <div className="form-row">
-                    <Form.Item
-                      name="expiryDate"
-                      label="Expiry Date"
-                      rules={[{ required: true, message: 'Please enter the expiry date' }]}
-                    >
-                      <Input placeholder="MM/YY" maxLength={5} />
-                    </Form.Item>
-                    
-                    <Form.Item
-                      name="cvv"
-                      label="CVV"
-                      rules={[{ required: true, message: 'Please enter the CVV' }]}
-                    >
-                      <Input placeholder="123" maxLength={3} type="password" />
-                    </Form.Item>
-                  </div>
-                </>
-              ) : paymentMethod === 'netbanking' ? (
-                <>
-                  <Form.Item
-                    name="bankName"
-                    label="Select Bank"
-                    rules={[{ required: true, message: 'Please select your bank' }]}
-                  >
-                    <Radio.Group>
-                      <div className="bank-options-grid">
-                        <Radio.Button value="sbi">SBI</Radio.Button>
-                        <Radio.Button value="hdfc">HDFC</Radio.Button>
-                        <Radio.Button value="icici">ICICI</Radio.Button>
-                        <Radio.Button value="axis">Axis</Radio.Button>
-                        <Radio.Button value="pnb">PNB</Radio.Button>
-                        <Radio.Button value="bob">BOB</Radio.Button>
-                      </div>
-                    </Radio.Group>
-                  </Form.Item>
-                </>
-              ) : (
-                <>
-                  <Form.Item
-                    name="upiId"
-                    label="UPI ID"
-                    rules={[{ required: true, message: 'Please enter your UPI ID' }]}
-                  >
-                    <Input placeholder="yourname@upi" />
-                  </Form.Item>
-                </>
-              )}
-              
-              <div className="payment-summary">
-                <div className="summary-row">
-                  <span>Exam Fee:</span>
-                  <span>₹{examData?.price}</span>
-                </div>
-                <div className="summary-row">
-                  <span>Tax:</span>
-                  <span>₹0</span>
-                </div>
-                <Divider style={{ margin: '8px 0' }} />
-                <div className="summary-row total">
-                  <span>Total:</span>
-                  <span>₹{examData?.price}</span>
-                </div>
-              </div>
-              
-              <div className="payment-actions">
-                <Button onClick={() => setCurrentStep(0)} icon={<ArrowLeftOutlined />}>
-                  Back
-                </Button>
-                <Button 
-                  type="primary" 
-                  htmlType="submit" 
-                  loading={loading}
-                  icon={<LockOutlined />}
-                >
-                  Pay Now
-                </Button>
-              </div>
-            </Form>
-          </div>
-        </Card>
-      </div>
+            <Grid>
+              <Grid.Col span={6}>
+                <TextInput
+                  label="Expiry Date"
+                  placeholder="MM/YY"
+                  leftSection={<IconCalendar size={16} />}
+                  maxLength={5}
+                  autoComplete="off"
+                  {...cardForm.getInputProps("expiryDate")}
+                />
+              </Grid.Col>
+              <Grid.Col span={6}>
+                <TextInput
+                  label="CVV"
+                  placeholder="123"
+                  leftSection={<IconShieldCheck size={16} />}
+                  maxLength={4}
+                  autoComplete="off"
+                  {...cardForm.getInputProps("cvv")}
+                />
+              </Grid.Col>
+            </Grid>
+
+            <TextInput
+              label="Card Holder Name"
+              placeholder="John Doe"
+              leftSection={<IconUser size={16} />}
+              autoComplete="off"
+              {...cardForm.getInputProps("cardHolderName")}
+            />
+
+            <Button type="submit" fullWidth>
+              Pay ₹{exam?.price || 0}
+            </Button>
+          </Stack>
+        </form>
+      );
+    } else if (paymentMethod === "netbanking") {
+      return (
+        <form onSubmit={bankForm.onSubmit(handlePaymentSubmit)}>
+          <Stack gap="md">
+            <Radio.Group
+              label="Select Bank"
+              {...bankForm.getInputProps("bank")}
+            >
+              <Grid mt="xs">
+                <Grid.Col span={6}>
+                  <Radio value="sbi" label="SBI Bank" />
+                </Grid.Col>
+                <Grid.Col span={6}>
+                  <Radio value="hdfc" label="HDFC Bank" />
+                </Grid.Col>
+                <Grid.Col span={6}>
+                  <Radio value="icici" label="ICICI Bank" />
+                </Grid.Col>
+                <Grid.Col span={6}>
+                  <Radio value="axis" label="Axis Bank" />
+                </Grid.Col>
+              </Grid>
+            </Radio.Group>
+
+            <Button type="submit" fullWidth>
+              Proceed to Net Banking ₹{exam?.price || 0}
+            </Button>
+          </Stack>
+        </form>
+      );
+    } else if (paymentMethod === "upi") {
+      return (
+        <form onSubmit={upiForm.onSubmit(handlePaymentSubmit)}>
+          <Stack gap="md">
+            <TextInput
+              label="UPI ID"
+              placeholder="yourname@upi"
+              autoComplete="off"
+              {...upiForm.getInputProps("upiId")}
+            />
+
+            <Button type="submit" fullWidth>
+              Pay using UPI ₹{exam?.price || 0}
+            </Button>
+          </Stack>
+        </form>
+      );
+    } else if (paymentMethod === "wallet") {
+      return (
+        <form onSubmit={walletForm.onSubmit(handlePaymentSubmit)}>
+          <Stack gap="md">
+            <Radio.Group
+              label="Select Wallet"
+              {...walletForm.getInputProps("wallet")}
+            >
+              <Grid mt="xs">
+                <Grid.Col span={6}>
+                  <Radio value="paytm" label="Paytm" />
+                </Grid.Col>
+                <Grid.Col span={6}>
+                  <Radio value="phonepe" label="PhonePe" />
+                </Grid.Col>
+                <Grid.Col span={6}>
+                  <Radio value="amazonpay" label="Amazon Pay" />
+                </Grid.Col>
+                <Grid.Col span={6}>
+                  <Radio value="gpay" label="Google Pay" />
+                </Grid.Col>
+              </Grid>
+            </Radio.Group>
+
+            <Button type="submit" fullWidth>
+              Pay using Wallet ₹{exam?.price || 0}
+            </Button>
+          </Stack>
+        </form>
+      );
+    }
+  };
+
+  const renderPaymentProcessing = () => {
+    return (
+      <Stack align="center" justify="center" py={60} w="100%">
+        <Loader size="lg" />
+        <Title order={4} mt="lg">
+          Processing Your Payment
+        </Title>
+        <Text c="dimmed">Please do not refresh or close this window.</Text>
+        <Text c="dimmed">Transaction ID: {transactionId}</Text>
+      </Stack>
     );
   };
 
-  const renderSuccessStep = () => {
+  const renderPaymentComplete = () => {
     return (
-      <div className="payment-step-container">
-        <Card className="payment-card success-card">
-          <Result
-            status="success"
-            title="Payment Successful!"
-            subTitle={`Receipt Number: ${receipt?.receiptNumber}`}
-            icon={<LottiePlayer 
-              src="https://assets10.lottiefiles.com/packages/lf20_s2lryxtd.json" 
-              background="transparent"
-              speed={0.8}
-              style={{ width: 200, height: 200 }}
-              loop={false}
-              autoplay={true}
-            />}
-            extra={[
-              <Button
-                type="primary"
-                key="exam"
-                onClick={() => navigate(`/user/write-exam/${examId}`)}
-              >
-                Take Exam Now
-              </Button>,
-              <Button 
-                key="dashboard" 
-                onClick={() => navigate('/user/available-exams')}
-              >
-                Back to Dashboard
-              </Button>,
-            ]}
-          />
-          
-          <div className="success-details">
-            <div className="info-row">
-              <span className="label">Exam:</span>
-              <span className="value">{examData?.name}</span>
-            </div>
-            <div className="info-row">
-              <span className="label">Access Code:</span>
-              <span className="value code">{receipt?.examCode}</span>
-            </div>
-            <div className="info-row">
-              <span className="label">Payment Method:</span>
-              <span className="value">{paymentMethod.replace('_', ' ').toUpperCase()}</span>
-            </div>
-            <div className="info-row">
-              <span className="label">Amount Paid:</span>
-              <span className="value">₹{examData?.price}</span>
-            </div>
-            <div className="info-row">
-              <span className="label">Transaction ID:</span>
-              <span className="value">{paymentIntent?.transactionId}</span>
-            </div>
-            <div className="info-row">
-              <span className="label">Date:</span>
-              <span className="value">{new Date().toLocaleDateString()} {new Date().toLocaleTimeString()}</span>
-            </div>
-          </div>
-          
-          <div className="payment-note">
-            A receipt has been sent to your email.
-          </div>
-        </Card>
-      </div>
+      <Paper p="xl" withBorder>
+        <Stack align="center" gap="md">
+          <IconCircleCheck size={64} color="var(--mantine-color-green-6)" />
+          <Title order={2}>Payment Successful!</Title>
+          <Stack gap="xs" align="center">
+            <Text>Transaction ID: {transactionId}</Text>
+            <Text>Amount: ₹{exam?.price || 0}</Text>
+            <Text>A receipt has been sent to your email address.</Text>
+          </Stack>
+          <Group mt="lg">
+            <Button onClick={() => navigate(`/user/write-exam/${examId}`)}>
+              Go to Exam
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => navigate("/user/available-exams")}
+            >
+              Back to Available Exams
+            </Button>
+          </Group>
+        </Stack>
+      </Paper>
     );
   };
+
+  const renderPaymentFailed = () => {
+    return (
+      <Paper p="xl" withBorder>
+        <Stack align="center" gap="md">
+          <IconCircleX size={64} color="var(--mantine-color-red-6)" />
+          <Title order={2}>Payment Failed</Title>
+          <Text c="dimmed">
+            We couldn't process your payment. Please try again.
+          </Text>
+          <Group mt="lg">
+            <Button onClick={() => setCurrentStep(0)}>Try Again</Button>
+            <Button
+              variant="outline"
+              onClick={() => navigate("/user/available-exams")}
+            >
+              Back to Available Exams
+            </Button>
+          </Group>
+        </Stack>
+      </Paper>
+    );
+  };
+
+  const renderCurrentStep = () => {
+    if (currentStep === 0) {
+      return (
+        <div className="payment-step payment-methods">
+          <div className="payment-summary">
+            <Card withBorder>
+              <Title order={5} mb="md">
+                Payment Summary
+              </Title>
+              <Stack gap="xs">
+                <Group justify="space-between">
+                  <Text>Exam Name:</Text>
+                  <Text fw={500}>{exam?.name}</Text>
+                </Group>
+                <Group justify="space-between">
+                  <Text>Category:</Text>
+                  <Text>{exam?.category}</Text>
+                </Group>
+                <Group justify="space-between">
+                  <Text>Duration:</Text>
+                  <Text>{Math.floor((exam?.duration || 0) / 60)} minutes</Text>
+                </Group>
+                <Divider my="sm" />
+                <Group justify="space-between">
+                  <Text fw={700} size="lg">
+                    Total Amount:
+                  </Text>
+                  <Text fw={700} size="lg">
+                    ₹{exam?.price || 0}
+                  </Text>
+                </Group>
+              </Stack>
+            </Card>
+          </div>
+
+          <div className="payment-form">
+            <Title order={4}>Select Payment Method</Title>
+
+            <Radio.Group
+              value={paymentMethod}
+              onChange={handlePaymentMethodChange}
+              mt="md"
+            >
+              <Stack gap="sm" className="payment-method-selector">
+                <Radio
+                  value="credit_card"
+                  label={
+                    <Group gap="xs">
+                      <IconCreditCard size={16} /> Credit Card
+                    </Group>
+                  }
+                />
+                <Radio
+                  value="debit_card"
+                  label={
+                    <Group gap="xs">
+                      <IconCreditCard size={16} /> Debit Card
+                    </Group>
+                  }
+                />
+                <Radio
+                  value="netbanking"
+                  label={
+                    <Group gap="xs">
+                      <IconBuildingBank size={16} /> Net Banking
+                    </Group>
+                  }
+                />
+                <Radio
+                  value="upi"
+                  label={
+                    <Group gap="xs">
+                      <IconWallet size={16} /> UPI
+                    </Group>
+                  }
+                />
+                <Radio
+                  value="wallet"
+                  label={
+                    <Group gap="xs">
+                      <IconWallet size={16} /> Wallet
+                    </Group>
+                  }
+                />
+                <Radio
+                  value="free_test"
+                  label={
+                    <Group gap="xs">
+                      <IconGift size={16} /> 100% OFF (Testing)
+                    </Group>
+                  }
+                />
+              </Stack>
+            </Radio.Group>
+
+            <Box className="payment-form-container" mt="lg">
+              {renderPaymentForm()}
+            </Box>
+
+            <Alert
+              title="Secure Transaction"
+              color="blue"
+              icon={<IconLock size={16} />}
+              mt="lg"
+            >
+              Your payment information is secure. We use encryption and follow
+              security best practices to protect your data.
+            </Alert>
+          </div>
+        </div>
+      );
+    } else if (currentStep === 1) {
+      return (
+        <div className="payment-step">
+          {paymentStatus === "processing" && renderPaymentProcessing()}
+          {paymentStatus === "failed" && renderPaymentFailed()}
+        </div>
+      );
+    } else if (currentStep === 2) {
+      return <div className="payment-step">{renderPaymentComplete()}</div>;
+    }
+  };
+
+  if (loading) {
+    return (
+      <Stack align="center" justify="center" h={500}>
+        <Loader size="lg" />
+        <Text>Loading payment details...</Text>
+      </Stack>
+    );
+  }
 
   return (
     <div className="payment-portal-container">
-      <div className="payment-header">
-        <h1>Payment Portal</h1>
+      <Group className="payment-portal-header" mb="lg">
+        <Button
+          leftSection={<IconArrowLeft size={16} />}
+          variant="outline"
+          onClick={() => navigate("/user/available-exams")}
+          mr="md"
+        >
+          Back
+        </Button>
+        <Group className="header-title" gap="sm">
+          <PageTitle title="Exam Payment" />
+          <Badge color="violet" leftSection={<IconFlask size={12} />}>
+            BETA
+          </Badge>
+        </Group>
+      </Group>
+
+      <Alert
+        title="Beta Test Mode"
+        color="yellow"
+        icon={<IconFlask size={16} />}
+        mb="lg"
+      >
+        This payment system is currently in beta testing. No real payments are
+        processed, and all transactions are simulated for testing purposes.
+      </Alert>
+
+      <div className="payment-process-steps">
+        <Stepper active={currentStep} mb="xl">
+          <Stepper.Step
+            label="Payment Details"
+            icon={<IconCurrencyDollar size={18} />}
+          />
+          <Stepper.Step
+            label="Processing"
+            icon={
+              paymentStatus === "processing" ? (
+                <Loader size="xs" />
+              ) : (
+                <IconCurrencyDollar size={18} />
+              )
+            }
+          />
+          <Stepper.Step
+            label="Confirmation"
+            icon={<IconCircleCheck size={18} />}
+          />
+        </Stepper>
       </div>
-      
-      <div className="payment-steps-container">
-        <Steps current={currentStep} className="payment-steps">
-          <Step title="Method" description="Select payment" />
-          <Step title="Details" description="Complete payment" />
-          <Step title="Confirmation" description="Payment complete" />
-        </Steps>
-      </div>
-      
-      {examData && (
-        <>
-          {currentStep === 0 && renderPaymentMethodStep()}
-          {currentStep === 1 && renderPaymentDetailsStep()}
-          {currentStep === 2 && renderSuccessStep()}
-        </>
-      )}
-      
-      <style jsx="true">{`
-        .payment-portal-container {
-          max-width: 1000px;
-          margin: 0 auto;
-          padding: 20px;
-        }
-        
-        .payment-header {
-          margin-bottom: 20px;
-          text-align: center;
-        }
-        
-        .payment-header h1 {
-          color: var(--primary);
-          font-size: 28px;
-          font-weight: 500;
-        }
-        
-        .payment-steps-container {
-          margin-bottom: 40px;
-        }
-        
-        .payment-steps {
-          max-width: 800px;
-          margin: 0 auto;
-        }
-        
-        .payment-step-container {
-          max-width: 800px;
-          margin: 0 auto;
-        }
-        
-        .payment-card {
-          border-radius: 12px;
-          overflow: hidden;
-          box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
-          border: none;
-        }
-        
-        .exam-summary {
-          display: flex;
-          align-items: center;
-          gap: 20px;
-          padding-bottom: 20px;
-        }
-        
-        .exam-icon {
-          width: 60px;
-          height: 60px;
-          border-radius: 12px;
-          background: var(--primary-light);
-          color: var(--primary);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 28px;
-        }
-        
-        .exam-details h2 {
-          margin: 0 0 4px 0;
-          font-size: 20px;
-          font-weight: 500;
-        }
-        
-        .exam-details .category {
-          margin: 0;
-          color: var(--text-secondary);
-        }
-        
-        .price-tag {
-          margin-top: 8px;
-          font-size: 20px;
-          font-weight: 600;
-          color: var(--primary);
-          display: inline-block;
-          padding: 4px 12px;
-          background: var(--primary-light);
-          border-radius: 8px;
-        }
-        
-        .payment-methods {
-          margin-bottom: 24px;
-        }
-        
-        .payment-radio-group {
-          width: 100%;
-          display: flex;
-          flex-direction: column;
-          gap: 12px;
-        }
-        
-        .payment-option {
-          height: auto !important;
-          padding: 16px !important;
-          display: block;
-          width: 100%;
-          text-align: left;
-          border-radius: 8px !important;
-          border: 1px solid #e8e8e8 !important;
-          margin-right: 0 !important;
-        }
-        
-        .payment-option-content {
-          display: flex;
-          align-items: center;
-          gap: 16px;
-        }
-        
-        .payment-icon {
-          font-size: 24px;
-          color: var(--primary);
-        }
-        
-        .payment-option-title {
-          font-weight: 500;
-          font-size: 16px;
-        }
-        
-        .payment-option-desc {
-          color: var(--text-secondary);
-          font-size: 14px;
-        }
-        
-        .payment-actions {
-          display: flex;
-          justify-content: space-between;
-          margin-top: 24px;
-        }
-        
-        .payment-security-info {
-          text-align: center;
-          margin-top: 24px;
-          font-size: 14px;
-          color: var(--text-secondary);
-        }
-        
-        .transaction-info {
-          padding: 10px;
-        }
-        
-        .transaction-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: 20px;
-        }
-        
-        .transaction-header h3 {
-          margin: 0;
-          font-size: 20px;
-        }
-        
-        .transaction-amount {
-          font-size: 24px;
-          font-weight: 600;
-          color: var(--primary);
-        }
-        
-        .form-row {
-          display: flex;
-          gap: 16px;
-        }
-        
-        .form-row .ant-form-item {
-          flex: 1;
-        }
-        
-        .form-item-wide {
-          width: 100%;
-        }
-        
-        .bank-options-grid {
-          display: grid;
-          grid-template-columns: repeat(3, 1fr);
-          grid-gap: 10px;
-          margin-top: 8px;
-        }
-        
-        .bank-options-grid .ant-radio-button-wrapper {
-          text-align: center;
-          padding: 8px;
-          height: auto;
-        }
-        
-        .payment-summary {
-          background: #f9f9f9;
-          border-radius: 8px;
-          padding: 16px;
-          margin-top: 24px;
-        }
-        
-        .summary-row {
-          display: flex;
-          justify-content: space-between;
-          margin-bottom: 8px;
-        }
-        
-        .summary-row.total {
-          font-weight: 600;
-        }
-        
-        .success-card {
-          text-align: center;
-          padding: 24px;
-        }
-        
-        .success-details {
-          max-width: 500px;
-          margin: 24px auto;
-          text-align: left;
-          background: #f9f9f9;
-          border-radius: 8px;
-          padding: 16px;
-        }
-        
-        .info-row {
-          display: flex;
-          margin-bottom: 12px;
-          padding-bottom: 8px;
-          border-bottom: 1px dashed #eee;
-        }
-        
-        .info-row .label {
-          flex: 1;
-          font-weight: 500;
-          color: var(--text-secondary);
-        }
-        
-        .info-row .value {
-          flex: 2;
-          font-weight: 500;
-        }
-        
-        .info-row .code {
-          color: var(--primary);
-          font-weight: 600;
-          font-family: monospace;
-          font-size: 16px;
-          letter-spacing: 1px;
-        }
-        
-        .payment-note {
-          font-size: 14px;
-          color: var(--text-secondary);
-          margin-top: 16px;
-        }
-        
-        @media (max-width: 768px) {
-          .form-row {
-            flex-direction: column;
-            gap: 0;
-          }
-          
-          .bank-options-grid {
-            grid-template-columns: repeat(2, 1fr);
-          }
-        }
-      `}</style>
+
+      <div className="payment-content">{renderCurrentStep()}</div>
     </div>
   );
 }

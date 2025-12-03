@@ -1,0 +1,140 @@
+/**
+ * Global Styles - Minimal shadcn-inspired reset
+ * Only essential overrides - let Mantine handle everything else
+ */
+
+/* CSS Variables */
+:root {
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+/* Base Reset */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  font-family: var(--font-sans);
+  line-height: 1.5;
+  min-height: 100vh;
+}
+
+/* Minimal Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.3);
+}
+
+[data-mantine-color-scheme="dark"] ::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+[data-mantine-color-scheme="dark"] ::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+/* Essential Utility Classes */
+.min-h-screen {
+  min-height: 100vh;
+}
+
+.flex {
+  display: flex;
+}
+
+.items-center {
+  align-items: center;
+}
+
+.justify-center {
+  justify-content: center;
+}
+
+.p-4 {
+  padding: 1rem;
+}
+
+.page-muted-bg {
+  background-color: var(--mantine-color-gray-0);
+}
+
+[data-mantine-color-scheme="dark"] .page-muted-bg {
+  background-color: var(--mantine-color-dark-8);
+}
+
+.responsive-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+  gap: 16px;
+}
+
+/* Payment Portal Styles */
+.payment-portal-container {
+  background: var(--mantine-color-body);
+  border-radius: var(--mantine-radius-md);
+  padding: 20px;
+  min-height: 600px;
+}
+
+.payment-step {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
+}
+
+.payment-summary {
+  flex: 1;
+  min-width: 300px;
+}
+
+.payment-form {
+  flex: 2;
+  min-width: 400px;
+}
+
+.payment-method-selector {
+  margin: 24px 0;
+}
+
+.payment-form-container {
+  padding: 24px;
+  border: 1px solid var(--mantine-color-default-border);
+  border-radius: var(--mantine-radius-sm);
+}
+
+@media (max-width: 992px) {
+  .payment-step {
+    flex-direction: column;
+  }
+  
+  .payment-form {
+    min-width: 100%;
+  }
+  
+  .payment-summary {
+    min-width: 100%;
+  }
+}

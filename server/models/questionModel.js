@@ -17,6 +17,19 @@ const questionSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: "exams",
   },
+  tags: {
+    type: [String],
+    default: []
+  },
+  category: {
+    type: String,
+    default: "General"
+  },
+  difficulty: {
+    type: String,
+    enum: ["Easy", "Medium", "Hard"],
+    default: "Medium"
+  }
 }, {
     timestamps: true,
 });

@@ -8,23 +8,33 @@
     "npm": ">=10.8.2"
   },
   "scripts": {
-    "start": "nodemon server/server.js",
+    "start": "node server/server.js",
+    "server:dev": "nodemon server/server.js",
     "client": "npm start --prefix client",
-    "dev": "concurrently \"npm run client\" \"npm start\"",
+    "dev": "concurrently \"npm run client\" \"npm run server:dev\"",
     "heroku-postbuild": "NPM_CONFIG_PRODUCTION=false npm install --prefix client && npm run build --prefix client"
   },
   "author": "Your Name",
   "license": "MIT",
   "dependencies": {
+    "axios": "^1.8.4",
     "bcryptjs": "^2.4.3",
+    "compression": "^1.7.4",
     "concurrently": "^8.2.2",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.18.2",
+    "express-rate-limit": "^7.4.1",
+    "helmet": "^7.1.0",
     "joi": "^17.13.3",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.1.1",
     "nodemailer": "^6.10.0",
-    "nodemon": "^3.0.3"
+    "nodemon": "^3.0.3",
+    "react-router-dom": "^6.30.0",
+    "resend": "^6.5.2"
+  },
+  "devDependencies": {
+    "mongodb-memory-server": "^10.3.0"
   }
 }

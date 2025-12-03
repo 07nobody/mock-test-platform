@@ -142,3 +142,68 @@ export const checkExamRegistration = async (payload) => {
     };
   }
 };
+
+// Resend exam code to user's email
+export const resendExamCode = async (payload) => {
+  try {
+    const response = await axiosInstance.post("/exams/resend-exam-code", payload);
+    return response.data;
+  } catch (error) {
+    return error.response?.data || { 
+      success: false, 
+      message: "Failed to resend exam code. Please try again." 
+    };
+  }
+};
+
+// Notify registered users about exam activation
+export const notifyRegisteredUsers = async (payload) => {
+  try {
+    const response = await axiosInstance.post("/exams/notify-registered-users", payload);
+    return response.data;
+  } catch (error) {
+    return error.response?.data || { 
+      success: false, 
+      message: "Failed to send notifications to registered users." 
+    };
+  }
+};
+
+// Get question categories
+export const getQuestionCategories = async () => {
+  try {
+    const response = await axiosInstance.post("/exams/question-categories");
+    return response.data;
+  } catch (error) {
+    return error.response?.data || { 
+      success: false, 
+      message: "Failed to fetch question categories." 
+    };
+  }
+};
+
+// Get question tags
+export const getQuestionTags = async () => {
+  try {
+    const response = await axiosInstance.post("/exams/question-tags");
+    return response.data;
+  } catch (error) {
+    return error.response?.data || { 
+      success: false, 
+      message: "Failed to fetch question tags." 
+    };
+  }
+};
+
+// Update exam status
+export const updateExamStatus = async (payload) => {
+  try {
+    const response = await axiosInstance.post("/exams/update-exam-status", payload);
+    return response.data;
+  } catch (error) {
+    return error.response?.data || { 
+      success: false, 
+      message: "Failed to update exam status" 
+    };
+  }
+};

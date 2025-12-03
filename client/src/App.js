@@ -1,9 +1,18 @@
 import { Navigate, createBrowserRouter, RouterProvider } from 'react-router-dom';
-import { Spin } from 'antd';
 import { useSelector } from 'react-redux';
-import Login from './pages/common/Login';
+import { MantineProvider, LoadingOverlay } from '@mantine/core';
+import { Notifications } from '@mantine/notifications';
+import { ModalsProvider } from '@mantine/modals';
+import mantineTheme from './theme/mantineTheme';
+import { useTheme } from './contexts/ThemeContext';
+
+// Mantine CSS imports
+import '@mantine/core/styles.css';
+import '@mantine/notifications/styles.css';
+
+import Login from './pages/common/Login/LoginMantine';
 import Register from './pages/common/Register';
-import Home from './pages/common/Home';
+import Home from './pages/common/Home/HomeMantine';
 import Profile from './pages/common/Profile';
 import WriteExam from './pages/user/WriteExam/index.jsx';
 import AdminReports from './pages/admin/AdminReports';
@@ -16,21 +25,21 @@ import ForgotPassword from './pages/common/ForgotPassword';
 import ResetPassword from './pages/common/ResetPassword';
 import AvailableExams from './pages/user/AvailableExams';
 import PaymentPortal from './pages/user/PaymentPortal';
-import './stylesheets/theme.css';
-import './stylesheets/alignments.css';
-import './stylesheets/textelements.css';
-import './stylesheets/custom-components.css';
-import './stylesheets/form-elements.css';
-import './stylesheets/layout.css';
+import { ThemeProvider } from './contexts/ThemeContext';
+import { ColorProvider } from './contexts/ColorContext';
+import './stylesheets/globals.css';
+import Leaderboard from './pages/Leaderboard';
+import PaymentHistory from './pages/user/PaymentHistory';
+import AdminPayments from './pages/admin/AdminPayments';
 
-// Create router outside the component to avoid recreating it on every render
-const router = createBrowserRouter([
-  { path: "/login", element: <Login /> },
-  { path: "/register", element: <Register /> },
-  { 
-    path: "/", 
-    element: <ProtectedRoute><Home /></ProtectedRoute> 
-  },
+const router = createBrowserRouter(
+  [
+    { path: "/login", element: <Login /> },
+    { path: "/register", element: <Register /> },
+    { 
+      path: "/", 
+      element: <ProtectedRoute><Home /></ProtectedRoute> 
+    },
   { 
     path: "/profile", 
     element: <ProtectedRoute><Profile /></ProtectedRoute> 
@@ -77,25 +86,74 @@ const router = createBrowserRouter([
     path: "/payment-portal/:examId", 
     element: <ProtectedRoute><PaymentPortal /></ProtectedRoute> 
   },
-  // Add a catch-all route to handle any undefined paths
+  { 
+    path: "/leaderboard", 
+    element: <ProtectedRoute><Leaderboard /></ProtectedRoute> 
+  },
+  { 
+    path: "/user/payment-history", 
+    element: <ProtectedRoute><PaymentHistory /></ProtectedRoute> 
+  },
+  { 
+    path: "/admin/payments", 
+    element: <ProtectedRoute><AdminPayments /></ProtectedRoute> 
+  },
   {
     path: "*",
     element: <Navigate to="/" replace />
   }
-]);
+], 
+{
+  future: {
+    v7_startTransition: true,
+    v7_relativeSplatPath: true
+  }
+});
 
-function App() {
+// Inner App component that can access ThemeContext
+function AppContent() {
   const { loading } = useSelector(state => state.loader);
+  const { isDarkMode } = useTheme();
+  
+  // Determine the color scheme based on theme settings
+  const colorScheme = isDarkMode ? 'dark' : 'light';
   
   return (
-    <>
-      {loading && (
-        <div className="loader-parent">
-          <Spin size="large" />
-        </div>
-      )}
-      <RouterProvider router={router} />
-    </>
+    <MantineProvider 
+      theme={mantineTheme} 
+      defaultColorScheme={colorScheme}
+      forceColorScheme={colorScheme}
+    >
+      <Notifications position="top-right" zIndex={2000} />
+      <ModalsProvider>
+        {loading && (
+          <LoadingOverlay 
+            visible={loading} 
+            zIndex={1000} 
+            overlayProps={{ 
+              blur: 4,
+              backgroundOpacity: 0.6 
+            }}
+            loaderProps={{
+              color: 'violet',
+              type: 'oval',
+              size: 'lg'
+            }}
+          />
+        )}
+        <RouterProvider router={router} />
+      </ModalsProvider>
+    </MantineProvider>
+  );
+}
+
+function App() {
+  return (
+    <ColorProvider>
+      <ThemeProvider>
+        <AppContent />
+      </ThemeProvider>
+    </ColorProvider>
   );
 }
 

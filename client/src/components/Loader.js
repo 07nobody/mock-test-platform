@@ -1,10 +1,10 @@
 import React from 'react';
-import { Spin } from 'antd';
+import { Loader as MantineLoader } from '@mantine/core';
 
 function Loader() {
   return (
     <div className="loader-parent">
-      <Spin size="large" />
+      <MantineLoader size="lg" />
     </div>
   );
 }

@@ -30,6 +30,10 @@ const userSchema = new mongoose.Schema(
     resetTokenExpiry: {
       type: Date,
     },
+    score: {
+      type: Number,
+      default: 0,
+    },
   },
   {
     timestamps: true,

@@ -29,3 +29,8 @@ export const getAllReportsByUser = async () => {
         return error.response.data;
     }
 }
+
+// Get all reports by user (alias for getAllReportsByUser for backward compatibility)
+export const getUserReports = async (userId) => {
+  return getAllReportsByUser(userId);
+};

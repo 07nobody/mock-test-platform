@@ -4,8 +4,8 @@ const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const authMiddleware = require("../middlewares/authMiddleware");
 const Joi = require("joi");
-const nodemailer = require("nodemailer");
 const crypto = require("crypto");
+const { sendOTPEmail } = require("../services/emailService");
 
 // Validation schemas
 const registerSchema = Joi.object({
@@ -144,49 +144,76 @@ router.post("/get-user-info", authMiddleware, async (req, res) => {
   }
 });
 
-// Configure nodemailer transport
-const transportConfig = {
-  host: process.env.SMTP_HOST || "smtp.gmail.com",
-  port: process.env.SMTP_PORT || 587,
-  secure: false, // true for 465, false for other ports
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS,
-  },
-};
-
-// Create reusable transporter
-const transporter = nodemailer.createTransport(transportConfig);
-
-// Send email function
-async function sendEmail(email, otp) {
-  const mailOptions = {
-    from: `"Quiz App" <${process.env.EMAIL_USER}>`,
-    to: email,
-    subject: "Password Reset OTP",
-    html: `
-      <div style="font-family: Arial, sans-serif; padding: 20px; max-width: 600px; margin: 0 auto;">
-        <h2 style="color: #0F3460;">Quiz App Password Reset</h2>
-        <p>Your OTP for password reset is:</p>
-        <div style="background-color: #f5f5f5; padding: 15px; border-radius: 5px; text-align: center; font-size: 24px; letter-spacing: 5px; margin: 20px 0;">
-          <strong>${otp}</strong>
-        </div>
-        <p>This OTP will expire in 10 minutes.</p>
-        <p style="color: #666; font-size: 12px; margin-top: 20px;">
-          If you didn't request this password reset, please ignore this email.
-        </p>
-      </div>
-    `,
-  };
-
+// Leaderboard route
+router.get("/leaderboard", async (req, res) => {
   try {
-    const info = await transporter.sendMail(mailOptions);
-    console.log("Email sent successfully:", info.messageId);
+    const { limit = 10, period, examId } = req.query; // Add period and examId filters
+    let query = {};
+    
+    // Apply time period filter
+    if (period) {
+      const now = new Date();
+      let startDate = new Date();
+      
+      switch(period) {
+        case 'weekly':
+          startDate.setDate(now.getDate() - 7);
+          break;
+        case 'monthly':
+          startDate.setMonth(now.getMonth() - 1);
+          break;
+        case 'yearly':
+          startDate.setFullYear(now.getFullYear() - 1);
+          break;
+        default:
+          // No filter for 'all-time'
+          break;
+      }
+      
+      if (period !== 'all-time') {
+        query.createdAt = { $gte: startDate };
+      }
+    }
+    
+    // Get users based on filters
+    let topUsers;
+    
+    if (examId) {
+      // For specific exam, we need to get report data
+      const Report = require("../models/reportModel");
+      const reports = await Report.find({ exam: examId })
+        .sort({ result: -1 })
+        .limit(parseInt(limit))
+        .populate('user', 'name')
+        .select('user result');
+      
+      topUsers = reports.map(report => ({
+        _id: report.user._id,
+        name: report.user.name,
+        score: report.result
+      }));
+    } else {
+      // For general leaderboard, use the user score
+      topUsers = await User.find(query)
+        .sort({ score: -1 })
+        .limit(parseInt(limit))
+        .select("name score");
+    }
+
+    res.status(200).json({
+      message: "Leaderboard fetched successfully",
+      success: true,
+      data: topUsers,
+    });
   } catch (error) {
-    console.error("Email sending failed:", error);
-    throw new Error("Failed to send email");
+    console.error("Error fetching leaderboard:", error);
+    res.status(500).json({
+      message: "Error fetching leaderboard",
+      success: false,
+      error: error.message,
+    });
   }
-}
+});
 
 // Updated forgot-password route
 router.post("/forgot-password", async (req, res) => {
@@ -210,7 +237,7 @@ router.post("/forgot-password", async (req, res) => {
     await user.save();
 
     // Send OTP email
-    await sendEmail(email, otp);
+    await sendOTPEmail(email, otp);
 
     res.status(200).json({
       message: "OTP sent to your email",

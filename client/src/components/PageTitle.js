@@ -1,10 +1,27 @@
-import React from "react";
+import React from 'react';
+import { Title, Text, Group, Box, ThemeIcon } from '@mantine/core';
 
-function PageTitle({ title }) {
+/**
+ * PageTitle - A clean page title component
+ */
+function PageTitle({ title, subtitle, icon, action }) {
   return (
-    <div>
-      <h1 className="text-2xl font-bold">{title}</h1>
-    </div>
+    <Group justify="space-between" align="flex-start" wrap="wrap" gap="md" mb="lg">
+      <Group gap="sm">
+        {icon && (
+          <ThemeIcon size={40} radius="md" variant="gradient" gradient={{ from: 'violet', to: 'indigo' }}>
+            {icon}
+          </ThemeIcon>
+        )}
+        <Box>
+          <Title order={2}>{title}</Title>
+          {subtitle && (
+            <Text c="dimmed" size="sm">{subtitle}</Text>
+          )}
+        </Box>
+      </Group>
+      {action && <Box>{action}</Box>}
+    </Group>
   );
 }
 

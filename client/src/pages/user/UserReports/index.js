@@ -1,63 +1,39 @@
 import React, { useEffect, useCallback, useRef, useState } from "react";
-import PageTitle from "../../../components/PageTitle";
-import { message, Table, Tag, Radio, Empty } from "antd";
+import { 
+  Container, 
+  Title, 
+  Text, 
+  Table, 
+  Badge, 
+  Paper, 
+  Group, 
+  Stack, 
+  Card,
+  SimpleGrid,
+  SegmentedControl,
+  Progress,
+  ThemeIcon,
+  Box,
+  ScrollArea
+} from "@mantine/core";
 import { useDispatch } from "react-redux";
 import { HideLoading, ShowLoading } from "../../../redux/loaderSlice";
 import { getAllReportsByUser } from "../../../apicalls/reports";
-import ResponsiveCard from "../../../components/ResponsiveCard";
-import InfoItem from "../../../components/InfoItem";
-import { TableOutlined, AppstoreOutlined, CheckCircleOutlined, CloseCircleOutlined, FileDoneOutlined } from "@ant-design/icons";
+import { message } from "../../../utils/notifications";
+import { 
+  IconFileAnalytics, 
+  IconCalendar,
+  IconTable,
+  IconLayoutGrid,
+  IconFileOff
+} from "@tabler/icons-react";
 import moment from "moment";
 
 function UserReports() {
   const [reportsData, setReportsData] = useState([]);
-  const [viewMode, setViewMode] = useState("cards"); // 'table' or 'cards'
+  const [viewMode, setViewMode] = useState("cards");
   const dispatch = useDispatch();
   const dataFetchedRef = useRef(false);
-
-  const columns = [
-    {
-      title: "Exam Name",
-      dataIndex: "examName",
-      render: (text, record) => <>{record.exam?.name || "Unknown Exam"}</>,
-    },
-    {
-      title: "Date",
-      dataIndex: "date",
-      render: (text, record) => (
-        <>{moment(record.createdAt).format("DD-MM-YYYY hh:mm:ss")}</>
-      ),
-    },
-    {
-      title: "Total Marks",
-      dataIndex: "totalQuestions",
-      render: (text, record) => <>{record.exam?.totalMarks || "N/A"}</>,
-    },
-    {
-      title: "Passing Marks",
-      dataIndex: "correctAnswers",
-      render: (text, record) => <>{record.exam?.passingMarks || "N/A"}</>,
-    },
-    {
-      title: "Obtained Marks",
-      dataIndex: "correctAnswers",
-      render: (text, record) => <>{record.result?.correctAnswers?.length || 0}</>,
-    },
-    {
-      title: "Verdict",
-      dataIndex: "verdict",
-      render: (text, record) => {
-        const verdict = record.result?.verdict || "N/A";
-        return verdict === "Pass" ? (
-          <Tag color="success">{verdict}</Tag>
-        ) : verdict === "Fail" ? (
-          <Tag color="error">{verdict}</Tag>
-        ) : (
-          <Tag>{verdict}</Tag>
-        );
-      },
-    },
-  ];
 
   const getData = useCallback(async () => {
     try {
@@ -76,207 +52,172 @@ function UserReports() {
   }, [dispatch]);
 
   useEffect(() => {
-    // Only fetch data once when component mounts
     if (!dataFetchedRef.current) {
       dataFetchedRef.current = true;
       getData();
     }
-
     return () => {
-      // Clean up
       dataFetchedRef.current = false;
     };
   }, [getData]);
 
-  const getVerdictIcon = (verdict) => {
-    if (verdict === "Pass") {
-      return <CheckCircleOutlined className="verdict-icon pass" />;
-    } else if (verdict === "Fail") {
-      return <CloseCircleOutlined className="verdict-icon fail" />;
-    }
-    return null;
+  const getScorePercent = (report) => {
+    const correct = report.result?.correctAnswers?.length || 0;
+    const total = report.exam?.totalMarks || 1;
+    return Math.round((correct / total) * 100);
   };
 
   const renderTableView = () => (
-    <div className="responsive-table">
-      <Table 
-        columns={columns} 
-        dataSource={reportsData} 
-        rowKey="_id"
-        pagination={{ 
-          pageSize: 10,
-          hideOnSinglePage: true,
-          showSizeChanger: false
-        }}
-        scroll={{ x: 'max-content' }}
-      />
-    </div>
+    <Paper withBorder radius="md">
+      <ScrollArea>
+        <Table striped highlightOnHover>
+          <Table.Thead>
+            <Table.Tr>
+              <Table.Th>Exam Name</Table.Th>
+              <Table.Th>Date</Table.Th>
+              <Table.Th>Total Marks</Table.Th>
+              <Table.Th>Passing Marks</Table.Th>
+              <Table.Th>Obtained</Table.Th>
+              <Table.Th>Result</Table.Th>
+            </Table.Tr>
+          </Table.Thead>
+          <Table.Tbody>
+            {reportsData.length > 0 ? (
+              reportsData.map((report) => (
+                <Table.Tr key={report._id}>
+                  <Table.Td fw={500}>{report.exam?.name || "Unknown"}</Table.Td>
+                  <Table.Td c="dimmed">{moment(report.createdAt).format("DD MMM YYYY")}</Table.Td>
+                  <Table.Td>{report.exam?.totalMarks || "-"}</Table.Td>
+                  <Table.Td>{report.exam?.passingMarks || "-"}</Table.Td>
+                  <Table.Td fw={500}>{report.result?.correctAnswers?.length || 0}</Table.Td>
+                  <Table.Td>
+                    <Badge 
+                      color={report.result?.verdict === "Pass" ? "green" : "red"}
+                      variant="light"
+                    >
+                      {report.result?.verdict || "N/A"}
+                    </Badge>
+                  </Table.Td>
+                </Table.Tr>
+              ))
+            ) : (
+              <Table.Tr>
+                <Table.Td colSpan={6}>
+                  <Stack align="center" py="xl">
+                    <ThemeIcon size={48} variant="light" color="gray">
+                      <IconFileOff size={24} />
+                    </ThemeIcon>
+                    <Text c="dimmed">No reports found</Text>
+                  </Stack>
+                </Table.Td>
+              </Table.Tr>
+            )}
+          </Table.Tbody>
+        </Table>
+      </ScrollArea>
+    </Paper>
   );
 
   const renderCardView = () => (
-    <div className="responsive-grid">
+    <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md">
       {reportsData.length > 0 ? (
-        reportsData.map((report) => (
-          <ResponsiveCard
-            key={report._id}
-            className="report-card"
-            title={
-              <div className="report-card-title">
-                <span>{report.exam?.name || "Unknown Exam"}</span>
-                {report.result?.verdict && (
-                  <Tag 
-                    color={report.result.verdict === "Pass" ? "success" : "error"}
-                    className="verdict-tag"
-                  >
-                    {report.result.verdict}
-                  </Tag>
-                )}
-              </div>
-            }
-          >
-            <div className="report-info">
-              <InfoItem 
-                icon={<FileDoneOutlined />}
-                label="Date:" 
-                value={moment(report.createdAt).format("DD-MM-YYYY")} 
-              />
-              <InfoItem 
-                label="Time:" 
-                value={moment(report.createdAt).format("hh:mm A")} 
-              />
-              <InfoItem 
-                label="Total Marks:" 
-                value={report.exam?.totalMarks || "N/A"} 
-              />
-              <InfoItem 
-                label="Passing Marks:" 
-                value={report.exam?.passingMarks || "N/A"} 
-              />
-              <InfoItem 
-                label="Obtained Marks:" 
-                value={report.result?.correctAnswers?.length || 0} 
-                className={report.result?.verdict === "Pass" ? "pass-text" : "fail-text"}
-              />
-              
-              <div className="score-indicator">
-                <div className="score-bar">
-                  <div 
-                    className={`score-progress ${report.result?.verdict === "Pass" ? "pass" : "fail"}`}
-                    style={{ 
-                      width: `${(report.result?.correctAnswers?.length / report.exam?.totalMarks) * 100}%` 
-                    }}
-                  ></div>
-                </div>
-              </div>
-            </div>
-          </ResponsiveCard>
-        ))
+        reportsData.map((report) => {
+          const scorePercent = getScorePercent(report);
+          const isPassed = report.result?.verdict === "Pass";
+          
+          return (
+            <Card key={report._id} withBorder padding="lg" radius="md">
+              <Group justify="space-between" mb="md">
+                <Text fw={600} size="lg" lineClamp={1}>
+                  {report.exam?.name || "Unknown Exam"}
+                </Text>
+                <Badge 
+                  color={isPassed ? "green" : "red"} 
+                  variant="light"
+                  size="lg"
+                >
+                  {report.result?.verdict || "N/A"}
+                </Badge>
+              </Group>
+
+              <Stack gap="sm">
+                <Group gap="xs">
+                  <IconCalendar size={16} color="gray" />
+                  <Text size="sm" c="dimmed">
+                    {moment(report.createdAt).format("DD MMM YYYY, hh:mm A")}
+                  </Text>
+                </Group>
+
+                <Group grow>
+                  <Box>
+                    <Text size="xs" c="dimmed" tt="uppercase">Score</Text>
+                    <Text fw={600} size="xl" c={isPassed ? "green" : "red"}>
+                      {report.result?.correctAnswers?.length || 0}/{report.exam?.totalMarks || 0}
+                    </Text>
+                  </Box>
+                  <Box>
+                    <Text size="xs" c="dimmed" tt="uppercase">Pass Mark</Text>
+                    <Text fw={500} size="xl">
+                      {report.exam?.passingMarks || 0}
+                    </Text>
+                  </Box>
+                </Group>
+
+                <Box>
+                  <Group justify="space-between" mb={4}>
+                    <Text size="xs" c="dimmed">Progress</Text>
+                    <Text size="xs" fw={500}>{scorePercent}%</Text>
+                  </Group>
+                  <Progress 
+                    value={scorePercent} 
+                    color={isPassed ? "green" : "red"} 
+                    size="sm"
+                    radius="xl"
+                  />
+                </Box>
+              </Stack>
+            </Card>
+          );
+        })
       ) : (
-        <Empty description="No reports found" />
+        <Card withBorder padding="xl" radius="md">
+          <Stack align="center" py="xl">
+            <ThemeIcon size={64} variant="light" color="gray" radius="xl">
+              <IconFileOff size={32} />
+            </ThemeIcon>
+            <Text c="dimmed" size="lg">No reports found</Text>
+            <Text c="dimmed" size="sm">Complete an exam to see your results here</Text>
+          </Stack>
+        </Card>
       )}
-    </div>
+    </SimpleGrid>
   );
 
   return (
-    <div className="reports-container">
-      <div className="reports-header">
-        <PageTitle title="Your Reports" />
-        <div className="view-toggle">
-          <Radio.Group value={viewMode} onChange={(e) => setViewMode(e.target.value)} buttonStyle="solid">
-            <Radio.Button value="cards"><AppstoreOutlined /> Cards</Radio.Button>
-            <Radio.Button value="table"><TableOutlined /> Table</Radio.Button>
-          </Radio.Group>
-        </div>
-      </div>
-      <div className="divider"></div>
-      
+    <Container size="xl" py="md">
+      <Group justify="space-between" mb="lg">
+        <Group gap="sm">
+          <ThemeIcon size={40} radius="md" variant="gradient" gradient={{ from: 'violet', to: 'indigo' }}>
+            <IconFileAnalytics size={22} />
+          </ThemeIcon>
+          <Box>
+            <Title order={2}>Your Reports</Title>
+            <Text c="dimmed" size="sm">View your exam results and performance</Text>
+          </Box>
+        </Group>
+        
+        <SegmentedControl
+          value={viewMode}
+          onChange={setViewMode}
+          data={[
+            { label: <Group gap={4}><IconLayoutGrid size={16} />Cards</Group>, value: 'cards' },
+            { label: <Group gap={4}><IconTable size={16} />Table</Group>, value: 'table' },
+          ]}
+        />
+      </Group>
+
       {viewMode === 'table' ? renderTableView() : renderCardView()}
-      
-      <style jsx="true">{`
-        .reports-container {
-          padding: 0.5rem;
-        }
-        
-        .reports-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          flex-wrap: wrap;
-          gap: 1rem;
-        }
-        
-        .report-card-title {
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-          width: 100%;
-        }
-        
-        .report-info {
-          display: flex;
-          flex-direction: column;
-          gap: 0.75rem;
-        }
-        
-        .verdict-icon {
-          font-size: 1.5rem;
-          margin-right: 0.5rem;
-        }
-        
-        .verdict-icon.pass {
-          color: var(--success);
-        }
-        
-        .verdict-icon.fail {
-          color: var(--danger);
-        }
-        
-        .pass-text {
-          color: var(--success);
-          font-weight: bold;
-        }
-        
-        .fail-text {
-          color: var(--danger);
-          font-weight: bold;
-        }
-        
-        .score-indicator {
-          margin-top: 0.75rem;
-        }
-        
-        .score-bar {
-          height: 8px;
-          background-color: var(--light-accent);
-          border-radius: 4px;
-          overflow: hidden;
-        }
-        
-        .score-progress {
-          height: 100%;
-          border-radius: 4px;
-        }
-        
-        .score-progress.pass {
-          background-color: var(--success);
-        }
-        
-        .score-progress.fail {
-          background-color: var(--danger);
-        }
-        
-        @media (max-width: 768px) {
-          .reports-header {
-            flex-direction: column;
-            align-items: flex-start;
-          }
-          
-          .view-toggle {
-            margin-bottom: 1rem;
-          }
-        }
-      `}</style>
-    </div>
+    </Container>
   );
 }
 

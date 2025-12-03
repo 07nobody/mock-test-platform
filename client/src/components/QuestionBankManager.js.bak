@@ -1,0 +1,567 @@
+import React, { useState, useEffect } from 'react';
+import { useDispatch } from 'react-redux';
+import { 
+  Table, Button, Input, Tag, Select, Space, Modal, 
+  Form, Tabs, message, Tooltip, Card, Divider
+} from 'antd';
+import { 
+  PlusOutlined, EditOutlined, DeleteOutlined, 
+  FileSearchOutlined, FilterOutlined, TagsOutlined,
+  UploadOutlined
+} from '@ant-design/icons';
+import axios from 'axios';
+import { HideLoading, ShowLoading } from '../redux/loaderSlice';
+import BulkUploadQuestions from './BulkUploadQuestions';
+
+const { TabPane } = Tabs;
+const { Option } = Select;
+
+const QuestionBankManager = ({ examId, onRefresh }) => {
+  const [questions, setQuestions] = useState([]);
+  const [categories, setCategories] = useState([]);
+  const [tags, setTags] = useState([]);
+  const [activeTab, setActiveTab] = useState('1');
+  const [form] = Form.useForm();
+  const [editingQuestion, setEditingQuestion] = useState(null);
+  const [isModalVisible, setIsModalVisible] = useState(false);
+  const [searchText, setSearchText] = useState('');
+  const [filters, setFilters] = useState({
+    category: '',
+    tags: [],
+    difficulty: ''
+  });
+  const dispatch = useDispatch();
+
+  // Load data
+  const fetchData = async () => {
+    try {
+      dispatch(ShowLoading());
+      
+      // Get categories
+      const categoriesRes = await axios.get('/api/exams/question-categories');
+      if (categoriesRes.data.success) {
+        setCategories(categoriesRes.data.data);
+      }
+      
+      // Get tags
+      const tagsRes = await axios.get('/api/exams/question-tags');
+      if (tagsRes.data.success) {
+        setTags(tagsRes.data.data);
+      }
+      
+      // Get questions for this exam
+      const questionsRes = await axios.post('/api/exams/get-exam-by-id', { examId });
+      if (questionsRes.data.success) {
+        setQuestions(questionsRes.data.data.questions || []);
+      }
+    } catch (error) {
+      message.error('Error fetching data');
+    } finally {
+      dispatch(HideLoading());
+    }
+  };
+
+  useEffect(() => {
+    fetchData();
+  }, [examId]);
+
+  // Handle refreshing data after changes
+  const handleRefresh = () => {
+    fetchData();
+    if (onRefresh) onRefresh();
+  };
+
+  // Filter questions based on search text and filters
+  const filteredQuestions = questions.filter(q => {
+    // Text search
+    const matchesSearch = searchText ? 
+      q.name.toLowerCase().includes(searchText.toLowerCase()) : 
+      true;
+    
+    // Category filter
+    const matchesCategory = filters.category ? 
+      q.category === filters.category : 
+      true;
+    
+    // Difficulty filter
+    const matchesDifficulty = filters.difficulty ? 
+      q.difficulty === filters.difficulty : 
+      true;
+    
+    // Tags filter (match any of the selected tags)
+    const matchesTags = filters.tags.length > 0 ? 
+      filters.tags.some(tag => q.tags && q.tags.includes(tag)) : 
+      true;
+    
+    return matchesSearch && matchesCategory && matchesDifficulty && matchesTags;
+  });
+
+  // Edit question
+  const handleEdit = (question) => {
+    setEditingQuestion(question);
+    form.setFieldsValue({
+      name: question.name,
+      correctOption: question.correctOption,
+      ...question.options,
+      category: question.category || 'General',
+      difficulty: question.difficulty || 'Medium',
+      tags: question.tags || []
+    });
+    setIsModalVisible(true);
+  };
+
+  // Delete question
+  const handleDelete = async (questionId) => {
+    try {
+      dispatch(ShowLoading());
+      const response = await axios.post('/api/exams/delete-question-in-exam', {
+        questionId,
+        examId
+      });
+      
+      if (response.data.success) {
+        message.success(response.data.message);
+        handleRefresh();
+      } else {
+        message.error(response.data.message);
+      }
+    } catch (error) {
+      message.error('Error deleting question');
+    } finally {
+      dispatch(HideLoading());
+    }
+  };
+
+  // Save question
+  const handleSave = async (values) => {
+    try {
+      dispatch(ShowLoading());
+      
+      // Format options
+      const options = {
+        A: values.A,
+        B: values.B,
+        C: values.C,
+        D: values.D
+      };
+      
+      const payload = {
+        name: values.name,
+        correctOption: values.correctOption,
+        options,
+        category: values.category || 'General',
+        difficulty: values.difficulty || 'Medium',
+        tags: values.tags || [],
+        exam: examId
+      };
+      
+      let response;
+      if (editingQuestion) {
+        // Edit existing question
+        response = await axios.post('/api/exams/edit-question-in-exam', {
+          ...payload,
+          questionId: editingQuestion._id
+        });
+      } else {
+        // Add new question
+        response = await axios.post('/api/exams/add-question-to-exam', payload);
+      }
+      
+      if (response.data.success) {
+        message.success(response.data.message);
+        setIsModalVisible(false);
+        form.resetFields();
+        setEditingQuestion(null);
+        handleRefresh();
+      } else {
+        message.error(response.data.message);
+      }
+    } catch (error) {
+      message.error('Error saving question');
+    } finally {
+      dispatch(HideLoading());
+    }
+  };
+
+  // Add new tag when pressing Enter
+  const handleTagInputConfirm = (value, form) => {
+    if (!value) return;
+    
+    // Check if tag already exists
+    if (!tags.includes(value)) {
+      const newTags = [...tags, value];
+      setTags(newTags);
+    }
+    
+    // Add to the form's tags
+    const currentTags = form.getFieldValue('tags') || [];
+    if (!currentTags.includes(value)) {
+      form.setFieldsValue({ tags: [...currentTags, value] });
+    }
+  };
+
+  // Add new category when pressing Enter
+  const handleCategoryInputConfirm = (value) => {
+    if (!value) return;
+    
+    // Check if category already exists
+    if (!categories.includes(value)) {
+      const newCategories = [...categories, value];
+      setCategories(newCategories);
+    }
+  };
+
+  // Table columns
+  const columns = [
+    {
+      title: 'Question',
+      dataIndex: 'name',
+      key: 'name',
+      width: '35%',
+      render: (text) => {
+        // Highlight search text if any
+        if (!searchText) return text;
+        
+        const index = text.toLowerCase().indexOf(searchText.toLowerCase());
+        if (index === -1) return text;
+        
+        const beforeStr = text.substring(0, index);
+        const matchStr = text.substring(index, index + searchText.length);
+        const afterStr = text.substring(index + searchText.length);
+        
+        return (
+          <span>
+            {beforeStr}
+            <span style={{ backgroundColor: '#ffc069' }}>{matchStr}</span>
+            {afterStr}
+          </span>
+        );
+      }
+    },
+    {
+      title: 'Category',
+      dataIndex: 'category',
+      key: 'category',
+      width: '15%',
+      render: (category) => (
+        <Tag color="blue">{category || 'General'}</Tag>
+      )
+    },
+    {
+      title: 'Difficulty',
+      dataIndex: 'difficulty',
+      key: 'difficulty',
+      width: '10%',
+      render: (difficulty) => {
+        let color = 'green';
+        if (difficulty === 'Medium') color = 'orange';
+        if (difficulty === 'Hard') color = 'red';
+        
+        return <Tag color={color}>{difficulty || 'Medium'}</Tag>;
+      }
+    },
+    {
+      title: 'Tags',
+      dataIndex: 'tags',
+      key: 'tags',
+      width: '20%',
+      render: (tags) => (
+        <span>
+          {tags && tags.length > 0 ? (
+            tags.map(tag => <Tag key={tag}>{tag}</Tag>)
+          ) : (
+            <span style={{ color: '#999' }}>No tags</span>
+          )}
+        </span>
+      )
+    },
+    {
+      title: 'Actions',
+      key: 'actions',
+      width: '20%',
+      render: (_, record) => (
+        <Space>
+          <Tooltip title="Edit Question">
+            <Button 
+              type="primary" 
+              ghost 
+              icon={<EditOutlined />} 
+              onClick={() => handleEdit(record)}
+              size="small"
+            />
+          </Tooltip>
+          <Tooltip title="Delete Question">
+            <Button 
+              danger 
+              icon={<DeleteOutlined />} 
+              onClick={() => Modal.confirm({
+                title: 'Are you sure you want to delete this question?',
+                content: 'This action cannot be undone.',
+                onOk: () => handleDelete(record._id)
+              })}
+              size="small"
+            />
+          </Tooltip>
+        </Space>
+      )
+    },
+  ];
+
+  return (
+    <div>
+      <Tabs activeKey={activeTab} onChange={setActiveTab}>
+        <TabPane tab="Question List" key="1">
+          <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between' }}>
+            <Space>
+              <Input.Search
+                placeholder="Search questions..."
+                allowClear
+                onChange={(e) => setSearchText(e.target.value)}
+                style={{ width: 250 }}
+              />
+              
+              <Select
+                placeholder="Category"
+                allowClear
+                style={{ width: 150 }}
+                onChange={(value) => setFilters({ ...filters, category: value })}
+                value={filters.category}
+                dropdownRender={(menu) => (
+                  <div>
+                    {menu}
+                    <Divider style={{ margin: '4px 0' }} />
+                    <div style={{ display: 'flex', flexWrap: 'nowrap', padding: 8 }}>
+                      <Input.Search
+                        size="small"
+                        placeholder="Add category"
+                        enterButton={<PlusOutlined />}
+                        onSearch={handleCategoryInputConfirm}
+                      />
+                    </div>
+                  </div>
+                )}
+              >
+                {categories.map(category => (
+                  <Option key={category} value={category}>{category}</Option>
+                ))}
+              </Select>
+              
+              <Select
+                placeholder="Difficulty"
+                allowClear
+                style={{ width: 120 }}
+                onChange={(value) => setFilters({ ...filters, difficulty: value })}
+                value={filters.difficulty}
+              >
+                <Option value="Easy">Easy</Option>
+                <Option value="Medium">Medium</Option>
+                <Option value="Hard">Hard</Option>
+              </Select>
+              
+              <Select
+                mode="multiple"
+                placeholder="Tags"
+                allowClear
+                style={{ width: 200 }}
+                onChange={(values) => setFilters({ ...filters, tags: values })}
+                value={filters.tags}
+              >
+                {tags.map(tag => (
+                  <Option key={tag} value={tag}>{tag}</Option>
+                ))}
+              </Select>
+              
+              <Button 
+                type="primary" 
+                ghost 
+                icon={<FilterOutlined />}
+                onClick={() => {
+                  setFilters({ category: '', tags: [], difficulty: '' });
+                  setSearchText('');
+                }}
+              >
+                Clear Filters
+              </Button>
+            </Space>
+            
+            <Space>
+              <Button 
+                type="primary" 
+                icon={<PlusOutlined />} 
+                onClick={() => {
+                  setEditingQuestion(null);
+                  form.resetFields();
+                  setIsModalVisible(true);
+                }}
+              >
+                Add Question
+              </Button>
+              
+              <Button 
+                type="primary" 
+                icon={<UploadOutlined />} 
+                onClick={() => setActiveTab('2')}
+              >
+                Bulk Upload
+              </Button>
+            </Space>
+          </div>
+          
+          <Table 
+            dataSource={filteredQuestions} 
+            columns={columns} 
+            rowKey="_id"
+            pagination={{ pageSize: 10 }}
+          />
+          
+          <Modal
+            title={editingQuestion ? "Edit Question" : "Add New Question"}
+            visible={isModalVisible}
+            onCancel={() => {
+              setIsModalVisible(false);
+              setEditingQuestion(null);
+              form.resetFields();
+            }}
+            footer={null}
+            width={700}
+          >
+            <Form
+              form={form}
+              layout="vertical"
+              onFinish={handleSave}
+            >
+              <Form.Item
+                name="name"
+                label="Question Text"
+                rules={[{ required: true, message: 'Please enter the question' }]}
+              >
+                <Input.TextArea rows={3} placeholder="Enter your question text here" />
+              </Form.Item>
+              
+              <Form.Item label="Options">
+                <Space direction="vertical" style={{ width: '100%' }}>
+                  {['A', 'B', 'C', 'D'].map(option => (
+                    <Form.Item
+                      key={option}
+                      name={option}
+                      rules={[{ required: true, message: `Please enter option ${option}` }]}
+                      style={{ marginBottom: 8 }}
+                    >
+                      <Input placeholder={`Option ${option}`} addonBefore={option} />
+                    </Form.Item>
+                  ))}
+                </Space>
+              </Form.Item>
+              
+              <Form.Item
+                name="correctOption"
+                label="Correct Answer"
+                rules={[{ required: true, message: 'Please select the correct answer' }]}
+              >
+                <Select placeholder="Select the correct option">
+                  <Option value="A">Option A</Option>
+                  <Option value="B">Option B</Option>
+                  <Option value="C">Option C</Option>
+                  <Option value="D">Option D</Option>
+                </Select>
+              </Form.Item>
+              
+              <Form.Item
+                name="category"
+                label="Category"
+              >
+                <Select
+                  placeholder="Select or add a category"
+                  dropdownRender={(menu) => (
+                    <div>
+                      {menu}
+                      <Divider style={{ margin: '4px 0' }} />
+                      <div style={{ display: 'flex', flexWrap: 'nowrap', padding: 8 }}>
+                        <Input.Search
+                          size="small"
+                          placeholder="Add category"
+                          enterButton={<PlusOutlined />}
+                          onSearch={handleCategoryInputConfirm}
+                        />
+                      </div>
+                    </div>
+                  )}
+                >
+                  {categories.map(category => (
+                    <Option key={category} value={category}>{category}</Option>
+                  ))}
+                </Select>
+              </Form.Item>
+              
+              <Form.Item
+                name="difficulty"
+                label="Difficulty Level"
+              >
+                <Select placeholder="Select difficulty level">
+                  <Option value="Easy">Easy</Option>
+                  <Option value="Medium">Medium</Option>
+                  <Option value="Hard">Hard</Option>
+                </Select>
+              </Form.Item>
+              
+              <Form.Item
+                name="tags"
+                label="Tags"
+              >
+                <Select
+                  mode="tags"
+                  placeholder="Add tags"
+                  dropdownRender={(menu) => (
+                    <div>
+                      {menu}
+                      <Divider style={{ margin: '4px 0' }} />
+                      <div style={{ display: 'flex', flexWrap: 'nowrap', padding: 8 }}>
+                        <Input.Search
+                          size="small"
+                          placeholder="Add new tag"
+                          enterButton={<PlusOutlined />}
+                          onSearch={(value) => handleTagInputConfirm(value, form)}
+                        />
+                      </div>
+                    </div>
+                  )}
+                >
+                  {tags.map(tag => (
+                    <Option key={tag} value={tag}>{tag}</Option>
+                  ))}
+                </Select>
+              </Form.Item>
+              
+              <Form.Item>
+                <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                  <Space>
+                    <Button 
+                      onClick={() => {
+                        setIsModalVisible(false);
+                        setEditingQuestion(null);
+                        form.resetFields();
+                      }}
+                    >
+                      Cancel
+                    </Button>
+                    <Button type="primary" htmlType="submit">
+                      {editingQuestion ? 'Update' : 'Add'} Question
+                    </Button>
+                  </Space>
+                </div>
+              </Form.Item>
+            </Form>
+          </Modal>
+        </TabPane>
+        
+        <TabPane tab="Bulk Upload" key="2">
+          <Card>
+            <BulkUploadQuestions examId={examId} onSuccess={handleRefresh} />
+          </Card>
+        </TabPane>
+      </Tabs>
+    </div>
+  );
+};
+
+export default QuestionBankManager;
