@@ -1,15 +1,18 @@
-const path = require("path");
 const mongoose = require("mongoose");
 
-require('dotenv').config({ path: path.join(__dirname, "../.env") });
-
+// In production, env vars come from Render dashboard, not .env file
 const isProduction = process.env.NODE_ENV === "production";
+if (!isProduction) {
+  const path = require("path");
+  require('dotenv').config({ path: path.join(__dirname, "../.env") });
+}
+
 const useInMemoryDb = !isProduction && String(process.env.USE_IN_MEMORY_DB || "").toLowerCase() === "true";
 let mongoUrl = (process.env.MONGO_URL || process.env.MONGO_LOCAL_URL || "").trim();
 let memoryServer;
 
 const connectionOptions = {
-  serverSelectionTimeoutMS: Number(process.env.MONGO_SERVER_SELECTION_TIMEOUT_MS) || 5000,
+  serverSelectionTimeoutMS: Number(process.env.MONGO_SERVER_SELECTION_TIMEOUT_MS) || 30000,
   socketTimeoutMS: Number(process.env.MONGO_SOCKET_TIMEOUT_MS) || 45000,
 };
 

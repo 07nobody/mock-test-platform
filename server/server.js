@@ -5,7 +5,14 @@ const compression = require("compression");
 const rateLimit = require("express-rate-limit");
 const path = require("path");
 
-require("dotenv").config();
+// Only load dotenv in development (production uses Render's env vars)
+if (process.env.NODE_ENV !== "production") {
+  require("dotenv").config();
+}
+
+// Log environment for debugging
+console.log("Environment:", process.env.NODE_ENV || "development");
+console.log("MONGO_URL exists:", !!process.env.MONGO_URL);
 
 const app = express();
 
