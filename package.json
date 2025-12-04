@@ -4,7 +4,7 @@
   "description": "Quiz Application using MERN stack",
   "main": "index.js",
   "engines": {
-    "node": "20.x",
+    "node": "20.18.0",
     "npm": ">=10.0.0"
   },
   "scripts": {
